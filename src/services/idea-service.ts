@@ -1,17 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import type {
     Actor,
+    CommentEntry,
+    Grade,
     Idea,
     IdeaDifficulty,
     IdeaStatus,
-    IdeaWithTally,
+    IdeaWithGrades,
     LogEntry,
-    Vote,
-    VoteValue,
+    ProjectCategory,
 } from '../types';
 import { IdeasRepo } from '../sheets/ideas.repo';
 import { LogsRepo } from '../sheets/logs.repo';
-import { VotesRepo } from '../sheets/votes.repo';
+import { GradesRepo } from '../sheets/grades.repo';
 
 interface IdAndClock {
     newId(): string;
@@ -20,7 +21,7 @@ interface IdAndClock {
 
 export interface IdeaServiceRepos {
     ideas: IdeasRepo;
-    votes: VotesRepo;
+    grades: GradesRepo;
     logs: LogsRepo;
 }
 
@@ -29,6 +30,7 @@ export interface CreateIdeaInput {
     description: string;
     techStack: string;
     difficulty: IdeaDifficulty;
+    category: ProjectCategory;
 }
 
 export class UserFacingError extends Error {}
@@ -51,6 +53,7 @@ export class IdeaService {
             description,
             tech_stack: input.techStack.trim(),
             difficulty: input.difficulty,
+            category: input.category,
             submitted_by: actor.id,
             submitted_by_name: actor.name,
             status: 'Active',
@@ -65,47 +68,58 @@ export class IdeaService {
         return idea;
     }
 
-    async listIdeas(status: IdeaStatus = 'Active'): Promise<IdeaWithTally[]> {
+    async listIdeas(status: IdeaStatus = 'Active'): Promise<IdeaWithGrades[]> {
         const ideas = await this.repos.ideas.findAll(status);
         return Promise.all(
             ideas.map(async (idea) => ({
                 idea,
-                tally: await this.repos.votes.tallyForIdea(idea.id),
+                grades: await this.repos.grades.summarizeForIdea(idea.id),
+                comments: await this.getCommentsForIdea(idea.id),
             })),
         );
     }
 
-    async getIdea(id: string): Promise<IdeaWithTally> {
+    async getIdea(id: string): Promise<IdeaWithGrades> {
         const idea = await this.requireIdea(id);
         return {
             idea,
-            tally: await this.repos.votes.tallyForIdea(idea.id),
+            grades: await this.repos.grades.summarizeForIdea(idea.id),
+            comments: await this.getCommentsForIdea(idea.id),
         };
     }
 
-    async voteIdea(id: string, voteValue: VoteValue, actor: Actor): Promise<IdeaWithTally> {
+    async gradeIdea(
+        id: string,
+        values: { learning: number; impact: number; feasibility: number; innovation: number },
+        actor: Actor,
+    ): Promise<IdeaWithGrades> {
         const idea = await this.requireIdea(id);
 
         if (idea.status !== 'Active') {
-            throw new UserFacingError(`Idea ${id} is ${idea.status.toLowerCase()} and cannot be voted on.`);
+            throw new UserFacingError(`Idea ${id} is ${idea.status.toLowerCase()} and cannot be graded.`);
         }
 
-        const vote: Vote = {
+        const grade: Grade = {
             id: this.ids.newId(),
             idea_id: idea.id,
             user_id: actor.id,
-            vote: voteValue,
+            user_name: actor.name,
+            learning: String(values.learning),
+            impact: String(values.impact),
+            feasibility: String(values.feasibility),
+            innovation: String(values.innovation),
             created_at: this.ids.now(),
         };
-        const result = await this.repos.votes.upsert(vote);
+
+        const result = await this.repos.grades.upsert(grade);
 
         await this.log(
             actor,
-            'idea.vote',
+            'idea.grade',
             idea.id,
             result.before ?? '',
             result.after,
-            `${actor.name} voted ${voteValue} on "${idea.title}".`,
+            `${actor.name} graded "${idea.title}" — L:${values.learning} I:${values.impact} F:${values.feasibility} N:${values.innovation}.`,
         );
 
         return this.getIdea(idea.id);
@@ -134,6 +148,17 @@ export class IdeaService {
 
     async updateIdeaThread(ideaId: string, threadId: string): Promise<void> {
         await this.repos.ideas.updateById(ideaId, { thread_id: threadId });
+    }
+
+    async getCommentsForIdea(ideaId: string): Promise<CommentEntry[]> {
+        const allLogs = await this.repos.logs.findAll();
+        return allLogs
+            .filter((entry) => entry.action_type === 'idea.comment' && entry.target_id === ideaId)
+            .map((entry) => ({
+                actor_name: entry.actor_name,
+                text: entry.detail,
+                timestamp: entry.timestamp,
+            }));
     }
 
     private async requireIdea(id: string): Promise<Idea> {

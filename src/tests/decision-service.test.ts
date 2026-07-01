@@ -18,6 +18,7 @@ describe('DecisionService', () => {
             title: 'Test',
             description: 'Test desc',
             difficulty: 'Easy',
+            category: 'Other',
             tech_stack: '',
             status: 'Active',
             submitted_by: 'u2',
@@ -48,6 +49,7 @@ describe('DecisionService', () => {
             title: 'Test',
             description: 'Test desc',
             difficulty: 'Easy',
+            category: 'B2B',
             tech_stack: '',
             status: 'Active',
             submitted_by: 'u2',
@@ -68,12 +70,12 @@ describe('DecisionService', () => {
         const { service, ideas } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Alice' };
 
-        // Pre-seed an idea
         const ideaRow: Idea = {
             id: 'id-2',
             title: 'Test 2',
             description: 'Test desc 2',
             difficulty: 'Easy',
+            category: 'Fintech',
             tech_stack: '',
             status: 'Active',
             submitted_by: 'u2',

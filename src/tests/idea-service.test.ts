@@ -3,9 +3,9 @@ import { describe, it } from 'node:test';
 import { IdeaService } from '../services/idea-service';
 import { IdeasRepo } from '../sheets/ideas.repo';
 import { LogsRepo } from '../sheets/logs.repo';
+import { GradesRepo } from '../sheets/grades.repo';
 import { MemoryTable } from '../sheets/memory-table';
-import { VotesRepo } from '../sheets/votes.repo';
-import type { Actor, Idea, LogEntry, Vote } from '../types';
+import type { Actor, Idea, LogEntry, Grade } from '../types';
 
 describe('IdeaService', () => {
     it('creates an idea and records an audit log', async () => {
@@ -18,6 +18,7 @@ describe('IdeaService', () => {
                 description: 'Plans graduation tasks and reminders.',
                 techStack: 'Node.js, Discord.js',
                 difficulty: 'Medium',
+                category: 'EdTech',
             },
             actor,
         );
@@ -25,6 +26,7 @@ describe('IdeaService', () => {
         assert.equal(idea.id, 'id-1');
         assert.equal(idea.status, 'Active');
         assert.equal(idea.submitted_by, actor.id);
+        assert.equal(idea.category, 'EdTech');
 
         const entries = await logs.findAll();
         assert.equal(entries.length, 1);
@@ -32,10 +34,10 @@ describe('IdeaService', () => {
         assert.equal(entries[0].target_id, idea.id);
     });
 
-    it('lists active ideas with vote tallies', async () => {
+    it('lists active ideas with grade summaries', async () => {
         const { service } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
-        const voter: Actor = { id: 'u2', name: 'Sara' };
+        const grader: Actor = { id: 'u2', name: 'Sara' };
 
         const idea = await service.createIdea(
             {
@@ -43,21 +45,24 @@ describe('IdeaService', () => {
                 description: 'Discord bot for project management.',
                 techStack: 'TypeScript',
                 difficulty: 'Easy',
+                category: 'Dev Tools',
             },
             actor,
         );
-        await service.voteIdea(idea.id, 'up', voter);
+        await service.gradeIdea(idea.id, { learning: 4, impact: 3, feasibility: 5, innovation: 2 }, grader);
 
         const rows = await service.listIdeas();
         assert.equal(rows.length, 1);
         assert.equal(rows[0].idea.title, 'GradBot');
-        assert.deepEqual(rows[0].tally, { up: 1, down: 0, unsure: 0, total: 1 });
+        assert.equal(rows[0].grades.count, 1);
+        assert.equal(rows[0].grades.learning, 4);
+        assert.equal(rows[0].grades.overall, 3.5);
     });
 
-    it('lets one user change their vote instead of creating duplicates', async () => {
-        const { service, votes } = createTestService();
+    it('lets one user update their grade instead of creating duplicates', async () => {
+        const { service, grades } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
-        const voter: Actor = { id: 'u2', name: 'Sara' };
+        const grader: Actor = { id: 'u2', name: 'Sara' };
 
         const idea = await service.createIdea(
             {
@@ -65,15 +70,17 @@ describe('IdeaService', () => {
                 description: 'Tracks tasks and milestones.',
                 techStack: 'Google Sheets',
                 difficulty: 'Hard',
+                category: 'B2B',
             },
             actor,
         );
 
-        await service.voteIdea(idea.id, 'up', voter);
-        const updated = await service.voteIdea(idea.id, 'down', voter);
+        await service.gradeIdea(idea.id, { learning: 3, impact: 3, feasibility: 3, innovation: 3 }, grader);
+        const updated = await service.gradeIdea(idea.id, { learning: 5, impact: 5, feasibility: 5, innovation: 5 }, grader);
 
-        assert.deepEqual(updated.tally, { up: 0, down: 1, unsure: 0, total: 1 });
-        assert.equal((await votes.findByIdeaId(idea.id)).length, 1);
+        assert.equal(updated.grades.count, 1);
+        assert.equal(updated.grades.overall, 5);
+        assert.equal((await grades.findByIdeaId(idea.id)).length, 1);
     });
 
     it('archives ideas and hides them from the default active list', async () => {
@@ -85,6 +92,7 @@ describe('IdeaService', () => {
                 description: 'Temporary idea.',
                 techStack: '',
                 difficulty: 'Easy',
+                category: 'Other',
             },
             actor,
         );
@@ -108,17 +116,42 @@ describe('IdeaService', () => {
                 description: 'We can comment on this.',
                 techStack: '',
                 difficulty: 'Easy',
+                category: 'Other',
             },
             actor,
         );
 
         await service.commentOnIdea(idea.id, 'This is a test comment', actor);
-        
+
         const entries = await logs.findAll();
         // createIdea + commentOnIdea
         assert.equal(entries.length, 2);
         assert.equal(entries[1].action_type, 'idea.comment');
         assert.equal(entries[1].detail, 'This is a test comment');
+    });
+
+    it('retrieves comments for an idea', async () => {
+        const { service } = createTestService();
+        const actor: Actor = { id: 'u1', name: 'Alice' };
+
+        const idea = await service.createIdea(
+            {
+                title: 'Discussion',
+                description: 'Has comments.',
+                techStack: '',
+                difficulty: 'Medium',
+                category: 'Social',
+            },
+            actor,
+        );
+
+        await service.commentOnIdea(idea.id, 'First comment', actor);
+        await service.commentOnIdea(idea.id, 'Second comment', actor);
+
+        const comments = await service.getCommentsForIdea(idea.id);
+        assert.equal(comments.length, 2);
+        assert.equal(comments[0].text, 'First comment');
+        assert.equal(comments[1].text, 'Second comment');
     });
 
     it('updates the thread id', async () => {
@@ -131,29 +164,56 @@ describe('IdeaService', () => {
                 description: 'Threads',
                 techStack: '',
                 difficulty: 'Easy',
+                category: 'Other',
             },
             actor,
         );
 
         await service.updateIdeaThread(idea.id, 'thread-123');
-        
+
         const updated = await ideas.findById(idea.id);
         assert.equal(updated?.thread_id, 'thread-123');
+    });
+
+    it('includes grades and comments in getIdea result', async () => {
+        const { service } = createTestService();
+        const author: Actor = { id: 'u1', name: 'Alice' };
+        const grader: Actor = { id: 'u2', name: 'Bob' };
+
+        const idea = await service.createIdea(
+            {
+                title: 'Full View',
+                description: 'View with grades and comments.',
+                techStack: 'React',
+                difficulty: 'Hard',
+                category: 'Fintech',
+            },
+            author,
+        );
+
+        await service.gradeIdea(idea.id, { learning: 4, impact: 5, feasibility: 3, innovation: 4 }, grader);
+        await service.commentOnIdea(idea.id, 'Looks great!', grader);
+
+        const result = await service.getIdea(idea.id);
+        assert.equal(result.grades.count, 1);
+        assert.equal(result.grades.impact, 5);
+        assert.equal(result.comments.length, 1);
+        assert.equal(result.comments[0].text, 'Looks great!');
     });
 });
 
 function createTestService() {
     let idCounter = 0;
     const ideas = new IdeasRepo(new MemoryTable<Idea>());
-    const votes = new VotesRepo(new MemoryTable<Vote>());
+    const grades = new GradesRepo(new MemoryTable<Grade>());
     const logs = new LogsRepo(new MemoryTable<LogEntry>());
     const service = new IdeaService(
-        { ideas, votes, logs },
+        { ideas, grades, logs },
         {
             newId: () => `id-${++idCounter}`,
             now: () => '2026-07-01T00:00:00.000Z',
         },
     );
 
-    return { service, ideas, votes, logs };
+    return { service, ideas, grades, logs };
 }

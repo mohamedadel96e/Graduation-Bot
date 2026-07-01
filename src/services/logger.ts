@@ -1,5 +1,6 @@
 import { Client, EmbedBuilder, TextChannel } from 'discord.js';
 import type { LogEntry } from '../types';
+import { PALETTE, BOT_FOOTER } from '../ui/design';
 
 /**
  * Posts log entries to Discord channels (#bot-logs and #bot-errors).
@@ -53,7 +54,7 @@ export class DiscordLogger {
         const color = actionColor(entry.action_type);
         const embed = new EmbedBuilder()
             .setColor(color)
-            .setTitle(`📋 ${formatActionType(entry.action_type)}`)
+            .setTitle(formatActionType(entry.action_type))
             .setDescription(entry.detail || 'No detail.')
             .addFields(
                 { name: 'Actor', value: entry.actor_name || entry.actor_id || 'System', inline: true },
@@ -61,7 +62,7 @@ export class DiscordLogger {
                 { name: 'Log ID', value: entry.id, inline: true },
             )
             .setTimestamp(new Date(entry.timestamp))
-            .setFooter({ text: `Action: ${entry.action_type}` });
+            .setFooter({ text: `${BOT_FOOTER} | ${entry.action_type}` });
 
         if (entry.before) {
             embed.addFields({ name: 'Before', value: truncate(entry.before, 1024), inline: false });
@@ -84,10 +85,11 @@ export class DiscordLogger {
         if (!this.logChannel) return;
 
         const embed = new EmbedBuilder()
-            .setColor(0x3498db)
-            .setTitle('🤖 System')
+            .setColor(PALETTE.sage)
+            .setTitle('System')
             .setDescription(message)
-            .setTimestamp(new Date());
+            .setTimestamp(new Date())
+            .setFooter({ text: BOT_FOOTER });
 
         try {
             await this.logChannel.send({ embeds: [embed] });
@@ -105,10 +107,11 @@ export class DiscordLogger {
 
         const errorMessage = error instanceof Error ? error.message : String(error);
         const embed = new EmbedBuilder()
-            .setColor(0xe74c3c)
-            .setTitle('❌ Error')
+            .setColor(PALETTE.error)
+            .setTitle('Error')
             .setDescription(truncate(errorMessage, 4096))
-            .setTimestamp(new Date());
+            .setTimestamp(new Date())
+            .setFooter({ text: BOT_FOOTER });
 
         if (context) {
             embed.addFields({ name: 'Context', value: truncate(context, 1024), inline: false });
@@ -123,17 +126,17 @@ export class DiscordLogger {
 }
 
 function actionColor(actionType: string): number {
-    if (actionType.includes('create') || actionType.includes('add')) return 0x386a20; // MD3 green
-    if (actionType.includes('archive') || actionType.includes('delete')) return 0xb3261e; // MD3 error red
-    if (actionType.includes('vote')) return 0xe8a317; // MD3 amber
-    if (actionType.includes('finalize') || actionType.includes('decide')) return 0x7d5260; // MD3 tertiary
-    if (actionType.includes('status') || actionType.includes('update')) return 0x6750a4; // MD3 primary
-    return 0x625b71; // MD3 secondary
+    if (actionType.includes('create') || actionType.includes('add')) return PALETTE.sage;
+    if (actionType.includes('archive') || actionType.includes('delete')) return PALETTE.forest;
+    if (actionType.includes('grade')) return PALETTE.sand;
+    if (actionType.includes('finalize') || actionType.includes('decide')) return PALETTE.sage;
+    if (actionType.includes('status') || actionType.includes('update')) return PALETTE.sand;
+    return PALETTE.forest;
 }
 
 function formatActionType(actionType: string): string {
     return actionType
-        .replace(/\./g, ' › ')
+        .replace(/\./g, ' > ')
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (c) => c.toUpperCase());
 }
