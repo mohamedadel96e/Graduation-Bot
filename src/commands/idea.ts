@@ -48,6 +48,11 @@ export const ideaCommand: BotCommand = {
                 .setDescription('Comment on a project idea.')
                 .addStringOption((option) => option.setName('id').setDescription('Idea ID.').setRequired(true))
                 .addStringOption((option) => option.setName('text').setDescription('Your comment.').setRequired(true)),
+        )
+        .addSubcommand((subcommand) =>
+            subcommand
+                .setName('leaderboard')
+                .setDescription('Show all active ideas sorted by overall rating.')
         ),
 
     async execute(interaction, context) {
@@ -66,6 +71,14 @@ export const ideaCommand: BotCommand = {
                 const status = (interaction.options.getString('status') ?? 'Active') as IdeaStatus;
                 const rows = await context.ideas.listIdeas(status);
                 await interaction.editReply({ embeds: [ideaListEmbed(rows, status)] });
+                return;
+            }
+
+            if (subcommand === 'leaderboard') {
+                const rows = await context.ideas.listIdeas('Active');
+                const sorted = rows.sort((a, b) => b.grades.overall - a.grades.overall);
+                const embed = ideaListEmbed(sorted, 'Active').setTitle('🏆 Idea Leaderboard');
+                await interaction.editReply({ embeds: [embed] });
                 return;
             }
 
