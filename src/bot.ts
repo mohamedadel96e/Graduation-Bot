@@ -1,4 +1,4 @@
-import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
+import { Client, Collection, Events, GatewayIntentBits, TextChannel } from 'discord.js';
 import { ENV } from './config';
 import { createCommands } from './commands';
 import type { BotCommand, CommandContext } from './commands/types';
@@ -116,6 +116,9 @@ export function createGradBot(env = ENV): GradBot {
             if (interaction.customId.startsWith('grade_')) {
                 const ideaId = interaction.customId.replace('grade_', '');
                 await interaction.showModal(ideaGradeModal(ideaId));
+            } else if (interaction.customId.startsWith('comments_')) {
+                const ideaId = interaction.customId.replace('comments_', '');
+                await handleViewCommentsButton(interaction, ideaId, context, discordLogger);
             }
             return;
         }
@@ -203,18 +206,27 @@ async function handleIdeaAddModal(interaction: any, context: CommandContext, log
         );
 
         const detailed = await context.ideas.getIdea(idea.id);
-        const message = await interaction.editReply({
-            embeds: [ideaEmbed(detailed)],
-            components: [ideaActionButtons(idea.id)],
+        await interaction.editReply({
+            content: `Idea **${idea.title}** submitted successfully. Check <#${context.env.DISCUSSION_CHANNEL_ID}> for the discussion thread.`,
         });
 
-        // Create a discussion thread — truncate name to 100 chars (Discord limit)
-        try {
-            const threadName = `Discussion: ${idea.title}`.slice(0, 100);
-            const thread = await message.startThread({ name: threadName });
-            await context.ideas.updateIdeaThread(idea.id, thread.id);
-        } catch (err) {
-            console.error('Thread creation failed:', err);
+        if (context.env.DISCUSSION_CHANNEL_ID) {
+            try {
+                const discussionChannel = await interaction.client.channels.fetch(context.env.DISCUSSION_CHANNEL_ID);
+                if (discussionChannel?.isTextBased()) {
+                    const textChannel = discussionChannel as TextChannel;
+                    const message = await textChannel.send({
+                        content: `Discussion thread for Idea: **${idea.title}**`,
+                        embeds: [ideaEmbed(detailed)],
+                        components: [ideaActionButtons(idea.id)],
+                    });
+                    const threadName = `Discussion: ${idea.title}`.slice(0, 100);
+                    const thread = await message.startThread({ name: threadName });
+                    await context.ideas.updateIdeaThread(idea.id, thread.id);
+                }
+            } catch (err) {
+                console.error('Thread creation failed in discussion channel:', err);
+            }
         }
     } catch (error) {
         console.error('Idea add modal failed:', error);
@@ -264,10 +276,67 @@ async function handleIdeaGradeModal(interaction: any, context: CommandContext, l
         } catch {
             // Best effort update of original embed
         }
+
+        // Update the voting results channel message
+        if (context.env.VOTING_RESULTS_CHANNEL_ID) {
+            try {
+                const resultsChannel = await interaction.client.channels.fetch(context.env.VOTING_RESULTS_CHANNEL_ID);
+                if (resultsChannel?.isTextBased()) {
+                    const textChannel = resultsChannel as TextChannel;
+                    if (row.idea.voting_message_id) {
+                        try {
+                            const votingMessage = await textChannel.messages.fetch(row.idea.voting_message_id);
+                            await votingMessage.edit({
+                                embeds: [ideaEmbed(row)],
+                                components: [ideaActionButtons(row.idea.id)],
+                            });
+                        } catch (err) {
+                            console.error('Could not fetch existing voting message:', err);
+                        }
+                    } else {
+                        const votingMessage = await textChannel.send({
+                            embeds: [ideaEmbed(row)],
+                            components: [ideaActionButtons(row.idea.id)],
+                        });
+                        await context.ideas.updateVotingMessageId(row.idea.id, votingMessage.id);
+                    }
+                }
+            } catch (err) {
+                console.error('Voting results channel update failed:', err);
+            }
+        }
     } catch (error) {
         console.error('Grade modal failed:', error);
         await logger.logError(error, 'Modal: idea-grade').catch(() => {});
         const msg = error instanceof UserFacingError ? error.message : 'Failed to save grade.';
+        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
+        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
+    }
+}
+
+async function handleViewCommentsButton(interaction: any, ideaId: string, context: CommandContext, logger: DiscordLogger) {
+    try {
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+        const comments = await context.ideas.getCommentsForIdea(ideaId);
+        
+        if (comments.length === 0) {
+            await interaction.editReply({ content: 'There are no comments on this idea yet.' });
+            return;
+        }
+
+        const lines = comments.map(c => `**${c.actor_name}** (${new Date(c.timestamp).toLocaleString()}):\n> ${c.text}`);
+        
+        // Discord max message length is 2000, so we slice if it gets too long
+        let content = `**Comments:**\n\n${lines.join('\n\n')}`;
+        if (content.length > 2000) {
+            content = content.slice(0, 1950) + '\n\n... (some comments were truncated)';
+        }
+
+        await interaction.editReply({ content });
+    } catch (error) {
+        console.error('View comments button failed:', error);
+        await logger.logError(error, 'Button: comments').catch(() => {});
+        const msg = 'Failed to load comments.';
         if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
         else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
     }
