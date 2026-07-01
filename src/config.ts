@@ -14,6 +14,8 @@ export const ENV = {
     LOG_CHANNEL_ID: process.env.LOG_CHANNEL_ID || '',
     ERROR_CHANNEL_ID: process.env.ERROR_CHANNEL_ID || '',
     DIGEST_CHANNEL_ID: process.env.DIGEST_CHANNEL_ID || '',
+    DISCUSSION_CHANNEL_ID: process.env.DISCUSSION_CHANNEL_ID || '',
+    VOTING_RESULTS_CHANNEL_ID: process.env.VOTING_RESULTS_CHANNEL_ID || '',
     
     LEAD_ROLE_ID: process.env.LEAD_ROLE_ID || '',
     ADMIN_ROLE_ID: process.env.ADMIN_ROLE_ID || '',
