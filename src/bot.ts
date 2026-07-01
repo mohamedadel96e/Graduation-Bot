@@ -29,6 +29,7 @@ import {
 import { ideaEmbed } from './ui/embeds/idea';
 import { ideaActionButtons } from './ui/components/idea-buttons';
 import { ideaGradeModal } from './ui/modals/idea-grade';
+import { ideaCommentModal } from './ui/modals/idea-comment';
 
 export interface GradBot {
     client: Client;
@@ -107,6 +108,8 @@ export function createGradBot(env = ENV): GradBot {
                 await handleIdeaAddModal(interaction, context, discordLogger);
             } else if (interaction.customId.startsWith('modal-idea-grade_')) {
                 await handleIdeaGradeModal(interaction, context, discordLogger);
+            } else if (interaction.customId.startsWith('modal-idea-comment_')) {
+                await handleIdeaCommentModal(interaction, context, discordLogger);
             }
             return;
         }
@@ -116,6 +119,9 @@ export function createGradBot(env = ENV): GradBot {
             if (interaction.customId.startsWith('grade_')) {
                 const ideaId = interaction.customId.replace('grade_', '');
                 await interaction.showModal(ideaGradeModal(ideaId));
+            } else if (interaction.customId.startsWith('add_comment_')) {
+                const ideaId = interaction.customId.replace('add_comment_', '');
+                await interaction.showModal(ideaCommentModal(ideaId));
             } else if (interaction.customId.startsWith('comments_')) {
                 const ideaId = interaction.customId.replace('comments_', '');
                 await handleViewCommentsButton(interaction, ideaId, context, discordLogger);
@@ -309,6 +315,80 @@ async function handleIdeaGradeModal(interaction: any, context: CommandContext, l
         console.error('Grade modal failed:', error);
         await logger.logError(error, 'Modal: idea-grade').catch(() => {});
         const msg = error instanceof UserFacingError ? error.message : 'Failed to save grade.';
+        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
+        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
+    }
+}
+
+async function handleIdeaCommentModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
+    try {
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+
+        const ideaId = interaction.customId.replace('modal-idea-comment_', '');
+        const text = interaction.fields.getTextInputValue('comment-text').trim();
+
+        if (!text) {
+            await interaction.editReply({ content: 'Comment cannot be empty.' });
+            return;
+        }
+
+        const actor = {
+            id: interaction.user.id,
+            name: interaction.user.globalName ?? interaction.user.username,
+        };
+
+        const idea = await context.ideas.commentOnIdea(ideaId, text, actor);
+        await interaction.editReply({ content: `Comment added to **${idea.title}**.` });
+
+        // Try to post it to the thread
+        if (idea.thread_id && interaction.guild) {
+            try {
+                const channel = await interaction.guild.channels.fetch(idea.thread_id);
+                if (channel?.isTextBased()) {
+                    await (channel as TextChannel).send(`**${actor.name}** commented:\n> ${text}`);
+                }
+            } catch (err) {
+                console.error('Thread posting failed for comment modal:', err);
+            }
+        }
+
+        // We also want to update the original message and voting card since the embed shows "last 5 comments"
+        try {
+            const row = await context.ideas.getIdea(idea.id);
+            // Update original message (could be in list or discussion channel)
+            try {
+                await interaction.message.edit({
+                    embeds: [ideaEmbed(row)],
+                    components: [ideaActionButtons(row.idea.id)],
+                });
+            } catch {
+                // best effort
+            }
+
+            // Update voting card if it exists
+            if (context.env.VOTING_RESULTS_CHANNEL_ID && row.idea.voting_message_id) {
+                try {
+                    const resultsChannel = await interaction.client.channels.fetch(context.env.VOTING_RESULTS_CHANNEL_ID);
+                    if (resultsChannel?.isTextBased()) {
+                        const textChannel = resultsChannel as TextChannel;
+                        const votingMessage = await textChannel.messages.fetch(row.idea.voting_message_id);
+                        await votingMessage.edit({
+                            embeds: [ideaEmbed(row)],
+                            components: [ideaActionButtons(row.idea.id)],
+                        });
+                    }
+                } catch (err) {
+                    console.error('Could not update voting card with comment:', err);
+                }
+            }
+        } catch (err) {
+            console.error('Could not refresh embed with comment:', err);
+        }
+
+    } catch (error) {
+        console.error('Comment modal failed:', error);
+        await logger.logError(error, 'Modal: idea-comment').catch(() => {});
+        const msg = error instanceof UserFacingError ? error.message : 'Failed to add comment.';
         if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
         else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
     }
