@@ -6,6 +6,7 @@ export const IDEA_COLUMNS = [
     'description',
     'tech_stack',
     'difficulty',
+    'category',
     'submitted_by',
     'submitted_by_name',
     'status',
@@ -14,11 +15,15 @@ export const IDEA_COLUMNS = [
     'updated_at',
 ] as const;
 
-export const VOTE_COLUMNS = [
+export const GRADE_COLUMNS = [
     'id',
     'idea_id',
     'user_id',
-    'vote',
+    'user_name',
+    'learning',
+    'impact',
+    'feasibility',
+    'innovation',
     'created_at',
 ] as const;
 
@@ -42,8 +47,8 @@ export type IdeaDifficulty = (typeof IDEA_DIFFICULTIES)[number];
 export const IDEA_STATUSES = ['Active', 'Finalized', 'Archived'] as const;
 export type IdeaStatus = (typeof IDEA_STATUSES)[number];
 
-export const VOTE_VALUES = ['up', 'down', 'unsure'] as const;
-export type VoteValue = (typeof VOTE_VALUES)[number];
+export const PROJECT_CATEGORIES = ['B2B', 'Fintech', 'EdTech', 'HealthTech', 'Social', 'Dev Tools', 'Other'] as const;
+export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number];
 
 export interface Actor {
     id: string;
@@ -56,6 +61,7 @@ export interface Idea extends SheetRow {
     description: string;
     tech_stack: string;
     difficulty: IdeaDifficulty;
+    category: ProjectCategory;
     submitted_by: string;
     submitted_by_name: string;
     status: IdeaStatus;
@@ -64,11 +70,15 @@ export interface Idea extends SheetRow {
     updated_at: string;
 }
 
-export interface Vote extends SheetRow {
+export interface Grade extends SheetRow {
     id: string;
     idea_id: string;
     user_id: string;
-    vote: VoteValue;
+    user_name: string;
+    learning: string;
+    impact: string;
+    feasibility: string;
+    innovation: string;
     created_at: string;
 }
 
@@ -93,14 +103,23 @@ export interface Decision extends SheetRow {
     decided_at: string;
 }
 
-export interface VoteTally {
-    up: number;
-    down: number;
-    unsure: number;
-    total: number;
+export interface GradeSummary {
+    learning: number;
+    impact: number;
+    feasibility: number;
+    innovation: number;
+    overall: number;
+    count: number;
 }
 
-export interface IdeaWithTally {
+export interface CommentEntry {
+    actor_name: string;
+    text: string;
+    timestamp: string;
+}
+
+export interface IdeaWithGrades {
     idea: Idea;
-    tally: VoteTally;
+    grades: GradeSummary;
+    comments: CommentEntry[];
 }
