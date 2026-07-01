@@ -2,16 +2,12 @@ import { SlashCommandBuilder, TextChannel } from 'discord.js';
 import { canManageProject } from '../permissions';
 import { UserFacingError } from '../services/idea-service';
 import {
-    IDEA_DIFFICULTIES,
     IDEA_STATUSES,
-    VOTE_VALUES,
     type Actor,
-    type IdeaDifficulty,
     type IdeaStatus,
-    type VoteValue,
 } from '../types';
 import { ideaEmbed, ideaListEmbed } from '../ui/embeds/idea';
-import { ideaVotingButtons } from '../ui/components/idea-buttons';
+import { ideaActionButtons } from '../ui/components/idea-buttons';
 import { ideaAddModal } from '../ui/modals/idea-add';
 import type { BotCommand } from './types';
 
@@ -22,7 +18,7 @@ export const ideaCommand: BotCommand = {
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('add')
-                .setDescription('Add a project idea (opens a form).')
+                .setDescription('Submit a new project idea (opens a form).')
         )
         .addSubcommand((subcommand) =>
             subcommand
@@ -37,19 +33,8 @@ export const ideaCommand: BotCommand = {
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('view')
-                .setDescription('View a project idea.')
+                .setDescription('View a project idea with grades and comments.')
                 .addStringOption((option) => option.setName('id').setDescription('Idea ID.').setRequired(true)),
-        )
-        .addSubcommand((subcommand) =>
-            subcommand
-                .setName('vote')
-                .setDescription('Vote on a project idea.')
-                .addStringOption((option) => option.setName('id').setDescription('Idea ID.').setRequired(true))
-                .addStringOption((option) =>
-                    option.setName('vote').setDescription('Your vote.').setRequired(true).addChoices(
-                        ...VOTE_VALUES.map((vote) => ({ name: vote, value: vote })),
-                    ),
-                ),
         )
         .addSubcommand((subcommand) =>
             subcommand
@@ -86,23 +71,9 @@ export const ideaCommand: BotCommand = {
 
             if (subcommand === 'view') {
                 const row = await context.ideas.getIdea(interaction.options.getString('id', true));
-                await interaction.editReply({ 
+                await interaction.editReply({
                     embeds: [ideaEmbed(row)],
-                    components: [ideaVotingButtons(row.idea.id)]
-                });
-                return;
-            }
-
-            if (subcommand === 'vote') {
-                const row = await context.ideas.voteIdea(
-                    interaction.options.getString('id', true),
-                    interaction.options.getString('vote', true) as VoteValue,
-                    actorFromInteraction(interaction),
-                );
-                await interaction.editReply({ 
-                    content: 'Vote saved.', 
-                    embeds: [ideaEmbed(row)],
-                    components: [ideaVotingButtons(row.idea.id)]
+                    components: [ideaActionButtons(row.idea.id)],
                 });
                 return;
             }
@@ -117,7 +88,7 @@ export const ideaCommand: BotCommand = {
                     interaction.options.getString('id', true),
                     actorFromInteraction(interaction),
                 );
-                await interaction.editReply({ content: `Archived idea ${idea.id}: ${idea.title}` });
+                await interaction.editReply({ content: `Archived idea \`${idea.id}\`: **${idea.title}**` });
                 return;
             }
 
@@ -127,7 +98,7 @@ export const ideaCommand: BotCommand = {
                 const actor = actorFromInteraction(interaction);
 
                 const idea = await context.ideas.commentOnIdea(ideaId, text, actor);
-                await interaction.editReply({ content: `💬 Comment added on **${idea.title}**.` });
+                await interaction.editReply({ content: `Comment added on **${idea.title}**.` });
 
                 // If the idea has a discussion thread, also post the comment there
                 if (idea.thread_id && interaction.guild) {
@@ -135,7 +106,7 @@ export const ideaCommand: BotCommand = {
                         const channel = await interaction.guild.channels.fetch(idea.thread_id);
                         if (channel?.isTextBased()) {
                             await (channel as TextChannel).send(
-                                `💬 **${actor.name}** commented:\n> ${text}`,
+                                `**${actor.name}** commented:\n> ${text}`,
                             );
                         }
                     } catch {
@@ -145,7 +116,7 @@ export const ideaCommand: BotCommand = {
                 return;
             }
 
-            await interaction.editReply({ content: 'Unknown idea subcommand.' });
+            await interaction.editReply({ content: 'Unknown subcommand.' });
         } catch (error) {
             if (error instanceof UserFacingError) {
                 await interaction.editReply({ content: error.message });
