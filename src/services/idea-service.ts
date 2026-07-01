@@ -58,6 +58,7 @@ export class IdeaService {
             submitted_by_name: actor.name,
             status: 'Active',
             thread_id: '',
+            voting_message_id: '',
             created_at: now,
             updated_at: now,
         };
@@ -148,6 +149,10 @@ export class IdeaService {
 
     async updateIdeaThread(ideaId: string, threadId: string): Promise<void> {
         await this.repos.ideas.updateById(ideaId, { thread_id: threadId });
+    }
+
+    async updateVotingMessageId(ideaId: string, messageId: string): Promise<void> {
+        await this.repos.ideas.updateById(ideaId, { voting_message_id: messageId });
     }
 
     async getCommentsForIdea(ideaId: string): Promise<CommentEntry[]> {

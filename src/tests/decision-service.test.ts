@@ -24,6 +24,7 @@ describe('DecisionService', () => {
             submitted_by: 'u2',
             submitted_by_name: 'Bob',
             thread_id: '',
+            voting_message_id: '',
             created_at: '2026-07-01T00:00:00.000Z',
             updated_at: '2026-07-01T00:00:00.000Z',
         };
@@ -55,6 +56,7 @@ describe('DecisionService', () => {
             submitted_by: 'u2',
             submitted_by_name: 'Bob',
             thread_id: '',
+            voting_message_id: '',
             created_at: '2026-07-01T00:00:00.000Z',
             updated_at: '2026-07-01T00:00:00.000Z',
         };
@@ -81,6 +83,7 @@ describe('DecisionService', () => {
             submitted_by: 'u2',
             submitted_by_name: 'Bob',
             thread_id: '',
+            voting_message_id: '',
             created_at: '2026-07-01T00:00:00.000Z',
             updated_at: '2026-07-01T00:00:00.000Z',
         };

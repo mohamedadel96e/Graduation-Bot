@@ -11,6 +11,7 @@ export const IDEA_COLUMNS = [
     'submitted_by_name',
     'status',
     'thread_id',
+    'voting_message_id',
     'created_at',
     'updated_at',
 ] as const;
@@ -66,6 +67,7 @@ export interface Idea extends SheetRow {
     submitted_by_name: string;
     status: IdeaStatus;
     thread_id: string;
+    voting_message_id: string;
     created_at: string;
     updated_at: string;
 }
