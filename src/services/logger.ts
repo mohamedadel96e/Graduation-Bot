@@ -1,0 +1,144 @@
+import { Client, EmbedBuilder, TextChannel } from 'discord.js';
+import type { LogEntry } from '../types';
+
+/**
+ * Posts log entries to Discord channels (#bot-logs and #bot-errors).
+ * This makes every action the bot takes visible to the team.
+ */
+export class DiscordLogger {
+    private logChannel: TextChannel | null = null;
+    private errorChannel: TextChannel | null = null;
+
+    constructor(
+        private readonly client: Client,
+        private readonly logChannelId: string,
+        private readonly errorChannelId: string,
+    ) {}
+
+    /**
+     * Resolve channel references. Call once the client is ready.
+     */
+    async init(): Promise<void> {
+        if (this.logChannelId) {
+            try {
+                const channel = await this.client.channels.fetch(this.logChannelId);
+                if (channel?.isTextBased()) {
+                    this.logChannel = channel as TextChannel;
+                    console.log(`Logger bound to #${this.logChannel.name} for logs.`);
+                }
+            } catch (err) {
+                console.warn(`Could not fetch log channel ${this.logChannelId}:`, err);
+            }
+        }
+
+        if (this.errorChannelId) {
+            try {
+                const channel = await this.client.channels.fetch(this.errorChannelId);
+                if (channel?.isTextBased()) {
+                    this.errorChannel = channel as TextChannel;
+                    console.log(`Logger bound to #${this.errorChannel.name} for errors.`);
+                }
+            } catch (err) {
+                console.warn(`Could not fetch error channel ${this.errorChannelId}:`, err);
+            }
+        }
+    }
+
+    /**
+     * Post a log entry to #bot-logs as a rich embed.
+     */
+    async logAction(entry: LogEntry): Promise<void> {
+        if (!this.logChannel) return;
+
+        const color = actionColor(entry.action_type);
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setTitle(`📋 ${formatActionType(entry.action_type)}`)
+            .setDescription(entry.detail || 'No detail.')
+            .addFields(
+                { name: 'Actor', value: entry.actor_name || entry.actor_id || 'System', inline: true },
+                { name: 'Target', value: entry.target_id || '—', inline: true },
+                { name: 'Log ID', value: entry.id, inline: true },
+            )
+            .setTimestamp(new Date(entry.timestamp))
+            .setFooter({ text: `Action: ${entry.action_type}` });
+
+        if (entry.before) {
+            embed.addFields({ name: 'Before', value: truncate(entry.before, 1024), inline: false });
+        }
+        if (entry.after) {
+            embed.addFields({ name: 'After', value: truncate(entry.after, 1024), inline: false });
+        }
+
+        try {
+            await this.logChannel.send({ embeds: [embed] });
+        } catch (err) {
+            console.error('Failed to post to log channel:', err);
+        }
+    }
+
+    /**
+     * Post an informational system message (e.g., startup, shutdown).
+     */
+    async logSystem(message: string): Promise<void> {
+        if (!this.logChannel) return;
+
+        const embed = new EmbedBuilder()
+            .setColor(0x3498db)
+            .setTitle('🤖 System')
+            .setDescription(message)
+            .setTimestamp(new Date());
+
+        try {
+            await this.logChannel.send({ embeds: [embed] });
+        } catch (err) {
+            console.error('Failed to post system log:', err);
+        }
+    }
+
+    /**
+     * Post an error to #bot-errors.
+     */
+    async logError(error: unknown, context?: string): Promise<void> {
+        const channel = this.errorChannel ?? this.logChannel;
+        if (!channel) return;
+
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const embed = new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle('❌ Error')
+            .setDescription(truncate(errorMessage, 4096))
+            .setTimestamp(new Date());
+
+        if (context) {
+            embed.addFields({ name: 'Context', value: truncate(context, 1024), inline: false });
+        }
+
+        try {
+            await channel.send({ embeds: [embed] });
+        } catch (err) {
+            console.error('Failed to post to error channel:', err);
+        }
+    }
+}
+
+function actionColor(actionType: string): number {
+    if (actionType.includes('create') || actionType.includes('add')) return 0x386a20; // MD3 green
+    if (actionType.includes('archive') || actionType.includes('delete')) return 0xb3261e; // MD3 error red
+    if (actionType.includes('vote')) return 0xe8a317; // MD3 amber
+    if (actionType.includes('finalize') || actionType.includes('decide')) return 0x7d5260; // MD3 tertiary
+    if (actionType.includes('status') || actionType.includes('update')) return 0x6750a4; // MD3 primary
+    return 0x625b71; // MD3 secondary
+}
+
+function formatActionType(actionType: string): string {
+    return actionType
+        .replace(/\./g, ' › ')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function truncate(text: string, maxLen: number): string {
+    if (text.length <= maxLen) return text;
+    return text.slice(0, maxLen - 3) + '...';
+}
