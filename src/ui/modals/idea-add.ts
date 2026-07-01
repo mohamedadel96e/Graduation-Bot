@@ -3,7 +3,7 @@ import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from
 export function ideaAddModal(): ModalBuilder {
     const modal = new ModalBuilder()
         .setCustomId('modal-idea-add')
-        .setTitle('💡 Submit a Project Idea');
+        .setTitle('Submit a Project Idea');
 
     const titleInput = new TextInputBuilder()
         .setCustomId('idea-title')
@@ -11,7 +11,7 @@ export function ideaAddModal(): ModalBuilder {
         .setPlaceholder('Short, catchy title for the idea')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
-        .setMaxLength(120);
+        .setMaxLength(80);
 
     const descriptionInput = new TextInputBuilder()
         .setCustomId('idea-description')
@@ -23,22 +23,22 @@ export function ideaAddModal(): ModalBuilder {
     const difficultyInput = new TextInputBuilder()
         .setCustomId('idea-difficulty')
         .setLabel('Difficulty (Easy, Medium, or Hard)')
-        .setPlaceholder('Easy, Medium, Hard')
+        .setPlaceholder('Easy, Medium, or Hard')
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
 
-    const techStackInput = new TextInputBuilder()
-        .setCustomId('idea-tech-stack')
-        .setLabel('Tech Stack')
-        .setPlaceholder('e.g., React, Node.js, PostgreSQL (optional)')
+    const categoryInput = new TextInputBuilder()
+        .setCustomId('idea-category')
+        .setLabel('Category')
+        .setPlaceholder('B2B, Fintech, EdTech, HealthTech, Social, Dev Tools, Other')
         .setStyle(TextInputStyle.Short)
-        .setRequired(false);
+        .setRequired(true);
 
     modal.addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput),
         new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput),
         new ActionRowBuilder<TextInputBuilder>().addComponents(difficultyInput),
-        new ActionRowBuilder<TextInputBuilder>().addComponents(techStackInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(categoryInput),
     );
 
     return modal;
