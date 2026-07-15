@@ -18,13 +18,8 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
     ) {}
 
     async findAll(): Promise<T[]> {
+        const headers = await this.ensureHeaders();
         const values = await this.readValues();
-        if (values.length === 0 || values[0].length === 0) {
-            await this.ensureHeaders();
-            return [];
-        }
-
-        const headers = values[0];
         return values
             .slice(1)
             .filter((row) => row.some((value) => value.trim().length > 0))
@@ -52,10 +47,8 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
     }
 
     async updateById(id: string, patch: Partial<T>): Promise<T | null> {
-        await this.ensureHeaders();
-
+        const headers = await this.ensureHeaders();
         const values = await this.readValues();
-        const headers = values[0] ?? [...this.columns];
         const idColumnIndex = headers.indexOf('id');
 
         if (idColumnIndex === -1) {
@@ -86,12 +79,29 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
         return next;
     }
 
-    private async ensureHeaders(): Promise<void> {
+    private async ensureHeaders(): Promise<string[]> {
         const values = await this.readValues('1:1');
         const headers = values[0] ?? [];
 
         if (headers.length > 0) {
-            return;
+            const missingColumns = this.columns.filter((column) => !headers.includes(column));
+
+            if (missingColumns.length === 0) {
+                return headers;
+            }
+
+            const nextHeaders = [...headers, ...missingColumns];
+
+            await this.sheets.spreadsheets.values.update({
+                spreadsheetId: this.spreadsheetId,
+                range: `${this.sheetName}!A1:${toColumnName(nextHeaders.length)}1`,
+                valueInputOption: 'RAW',
+                requestBody: {
+                    values: [nextHeaders],
+                },
+            });
+
+            return nextHeaders;
         }
 
         await this.sheets.spreadsheets.values.update({
@@ -102,6 +112,8 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
                 values: [[...this.columns]],
             },
         });
+
+        return [...this.columns];
     }
 
     private async readValues(range = 'A:ZZ'): Promise<string[][]> {
