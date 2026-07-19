@@ -83,6 +83,42 @@ describe('IdeaService', () => {
         assert.equal((await grades.findByIdeaId(idea.id)).length, 1);
     });
 
+    it('grades an idea without any discord wiring', async () => {
+        const { service, ideas, grades, logs } = createTestService();
+        const author: Actor = { id: 'u1', name: 'Mohamed' };
+        const grader: Actor = { id: 'u2', name: 'Sara' };
+
+        const idea = await service.createIdea(
+            {
+                title: 'Discord-Free Grade Test',
+                description: 'Ensures grading only touches local stores.',
+                techStack: 'TypeScript',
+                difficulty: 'Medium',
+                category: 'Other',
+            },
+            author,
+        );
+
+        const result = await service.gradeIdea(
+            idea.id,
+            { learning: 2, impact: 4, feasibility: 5, innovation: 3 },
+            grader,
+        );
+
+        assert.equal(result.grades.count, 1);
+        assert.equal(result.grades.overall, 3.5);
+
+        const storedIdea = await ideas.findById(idea.id);
+        assert.equal(storedIdea?.voting_message_id, '');
+
+        const storedGrades = await grades.findByIdeaId(idea.id);
+        assert.equal(storedGrades.length, 1);
+
+        const entries = await logs.findAll();
+        assert.equal(entries.length, 2);
+        assert.equal(entries[1].action_type, 'idea.grade');
+    });
+
     it('archives ideas and hides them from the default active list', async () => {
         const { service } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };

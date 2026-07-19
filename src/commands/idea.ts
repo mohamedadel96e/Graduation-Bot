@@ -70,14 +70,14 @@ export const ideaCommand: BotCommand = {
             if (subcommand === 'list') {
                 const status = (interaction.options.getString('status') ?? 'Active') as IdeaStatus;
                 const rows = await context.ideas.listIdeas(status);
-                await interaction.editReply({ embeds: [ideaListEmbed(rows, status)] });
+                await interaction.editReply({ embeds: [ideaListEmbed(rows, status, interaction.guildId)] });
                 return;
             }
 
             if (subcommand === 'leaderboard') {
                 const rows = await context.ideas.listIdeas('Active');
                 const sorted = rows.sort((a, b) => b.grades.overall - a.grades.overall);
-                const embed = ideaListEmbed(sorted, 'Active').setTitle('🏆 Idea Leaderboard');
+                const embed = ideaListEmbed(sorted, 'Active', interaction.guildId).setTitle('🏆 Idea Leaderboard');
                 await interaction.editReply({ embeds: [embed] });
                 return;
             }

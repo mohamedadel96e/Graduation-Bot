@@ -49,7 +49,7 @@ export function ideaEmbed({ idea, grades, comments }: IdeaWithGrades): EmbedBuil
     return embed;
 }
 
-export function ideaListEmbed(rows: IdeaWithGrades[], status: string): EmbedBuilder {
+export function ideaListEmbed(rows: IdeaWithGrades[], status: string, guildId?: string | null): EmbedBuilder {
     const embed = new EmbedBuilder()
         .setTitle(`Ideas — ${status}`)
         .setColor(statusColor(status))
@@ -66,7 +66,10 @@ export function ideaListEmbed(rows: IdeaWithGrades[], status: string): EmbedBuil
             .map(({ idea, grades }) => {
                 const score = grades.count > 0 ? `${grades.overall.toFixed(1)}/5` : 'Unrated';
                 const cat = idea.category ? `[${idea.category}]` : '';
-                return `\`${idea.id}\` **${idea.title}** ${cat}\n${idea.difficulty} · ${score} · ${idea.tech_stack || 'No stack'}`;
+                const titleText = idea.thread_id && guildId
+                    ? `[**${idea.title}**](https://discord.com/channels/${guildId}/${idea.thread_id})`
+                    : `**${idea.title}**`;
+                return `\`${idea.id}\` ${titleText} ${cat}\n${idea.difficulty} · ${score} · ${idea.tech_stack || 'No stack'}`;
             })
             .join('\n\n'),
     );
