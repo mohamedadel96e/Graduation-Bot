@@ -7,6 +7,7 @@ export interface TableStore<T extends SheetRow> {
     findById(id: string): Promise<T | null>;
     append(row: T): Promise<T>;
     updateById(id: string, patch: Partial<T>): Promise<T | null>;
+    deleteById(id: string): Promise<boolean>;
 }
 
 export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
@@ -77,6 +78,37 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
         });
 
         return next;
+    }
+
+    async deleteById(id: string): Promise<boolean> {
+        const headers = await this.ensureHeaders();
+        const values = await this.readValues();
+        const idColumnIndex = headers.indexOf('id');
+
+        if (idColumnIndex === -1) {
+            return false;
+        }
+
+        const bodyRowIndex = values
+            .slice(1)
+            .findIndex((row) => row[idColumnIndex] === id);
+
+        if (bodyRowIndex === -1) {
+            return false;
+        }
+
+        const sheetRowNumber = bodyRowIndex + 2; // 1-indexed, +1 for header
+
+        // We can't actually 'delete' a row easily without the sheets.spreadsheets.batchUpdate 
+        // with DeleteDimensionRequest. But we can just clear the row content as a simple deletion.
+        // The findAll logic already filters out empty rows:
+        // .filter((row) => row.some((value) => value.trim().length > 0))
+        await this.sheets.spreadsheets.values.clear({
+            spreadsheetId: this.spreadsheetId,
+            range: `${this.sheetName}!A${sheetRowNumber}:${toColumnName(headers.length)}${sheetRowNumber}`,
+        });
+
+        return true;
     }
 
     private async ensureHeaders(): Promise<string[]> {
