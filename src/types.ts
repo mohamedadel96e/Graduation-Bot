@@ -153,3 +153,27 @@ export interface Task extends SheetRow {
     created_at: string;
     updated_at: string;
 }
+
+export const MILESTONE_COLUMNS = [
+    'id',
+    'name',
+    'description',
+    'target_date',
+    'status',
+    'progress',
+    'created_at',
+] as const;
+
+export const MILESTONE_STATUSES = ['planned', 'active', 'completed', 'archived'] as const;
+export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number];
+
+export interface Milestone extends SheetRow {
+    id: string;
+    name: string;
+    description: string;
+    target_date: string;
+    status: MilestoneStatus;
+    progress: string; // Stored as string in sheet, usually 0-100
+    created_at: string;
+}
+
