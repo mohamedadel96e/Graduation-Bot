@@ -1,4 +1,5 @@
 import { Client, Collection, Events, GatewayIntentBits, TextChannel } from 'discord.js';
+import cron from 'node-cron';
 import { ENV } from './config';
 import { createCommands } from './commands';
 import type { BotCommand, CommandContext } from './commands/types';
@@ -14,6 +15,7 @@ import { IdeasRepo } from './sheets/ideas.repo';
 import { LogsRepo } from './sheets/logs.repo';
 import { TasksRepo } from './sheets/tasks.repo';
 import { MilestonesRepo } from './sheets/milestones.repo';
+import { StandupsRepo } from './sheets/standups.repo';
 import {
     DECISION_COLUMNS,
     GRADE_COLUMNS,
@@ -31,6 +33,8 @@ import {
     type Task,
     MILESTONE_COLUMNS,
     type Milestone,
+    STANDUP_COLUMNS,
+    type Standup,
 } from './types';
 import { ideaEmbed } from './ui/embeds/idea';
 import { ideaActionButtons } from './ui/components/idea-buttons';
@@ -38,6 +42,7 @@ import { ideaGradeModal } from './ui/modals/idea-grade';
 import { ideaCommentModal } from './ui/modals/idea-comment';
 import { TaskService } from './services/task-service';
 import { MilestoneService } from './services/milestone-service';
+import { StandupService } from './services/standup-service';
 
 export interface GradBot {
     client: Client;
@@ -74,6 +79,57 @@ export function createGradBot(env = ENV): GradBot {
             console.error('Discord logger failed:', err);
         });
     };
+
+    // Schedule Daily Digest Cron Job at 00:00 UTC
+    cron.schedule('0 0 * * *', async () => {
+        try {
+            console.log('Running daily standup digest cron job...');
+            
+            // Channel ID specified by user
+            const channelId = env.STANDUP_CHANNEL_ID;
+            if (!channelId) {
+                console.error('STANDUP_CHANNEL_ID is not set in environment.');
+                return;
+            }
+
+            const channel = await client.channels.fetch(channelId);
+            if (!channel || !channel.isTextBased()) {
+                console.error(`Could not find text channel with ID ${channelId} for standup digest.`);
+                return;
+            }
+
+            // Get yesterday's date in YYYY-MM-DD
+            const d = new Date();
+            d.setDate(d.getDate() - 1); // Get previous day since we are running at 00:00
+            const year = d.getUTCFullYear();
+            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            const targetDateStr = `${year}-${month}-${day}`;
+
+            const standups = await context.standups.getStandupsByDate(targetDateStr);
+            const textChannel = channel as TextChannel;
+
+            if (standups.length === 0) {
+                await textChannel.send(`No standups were submitted for ${targetDateStr}.`);
+                return;
+            }
+
+            let digest = `**Daily Standup Digest for ${targetDateStr}**\n\n`;
+            for (const s of standups) {
+                digest += `**<@${s.user_id}>**\n`;
+                digest += `**Done:** ${s.what_done}\n`;
+                digest += `**Next:** ${s.what_next}\n`;
+                digest += `**Blockers:** ${s.blockers}\n\n`;
+            }
+
+            await textChannel.send({ content: digest });
+        } catch (error) {
+            console.error('Failed to run daily standup digest:', error);
+            discordLogger.logError(error, 'Cron: daily-standup-digest').catch(() => {});
+        }
+    }, {
+        timezone: 'UTC'
+    });
 
     // Prevent unhandled errors from crashing the process
     client.on('error', (error) => {
@@ -122,6 +178,8 @@ export function createGradBot(env = ENV): GradBot {
                 await handleTaskAddModal(interaction, context, discordLogger);
             } else if (interaction.customId === 'modal-milestone-add') {
                 await handleMilestoneAddModal(interaction, context, discordLogger);
+            } else if (interaction.customId === 'modal-standup') {
+                await handleStandupModal(interaction, context, discordLogger);
             }
             return;
         }
@@ -469,6 +527,7 @@ function createCommandContext(env: typeof ENV, logger: DiscordLogger): CommandCo
     const decisionRepo = new DecisionRepo(new GoogleSheetsTable<Decision>(sheets, 'Decisions', DECISION_COLUMNS, env.GOOGLE_SHEET_ID));
     const tasksRepo = new TasksRepo(new GoogleSheetsTable<Task>(sheets, 'Tasks', TASK_COLUMNS, env.GOOGLE_SHEET_ID));
     const milestonesRepo = new MilestonesRepo(new GoogleSheetsTable<Milestone>(sheets, 'Milestones', MILESTONE_COLUMNS, env.GOOGLE_SHEET_ID));
+    const standupsRepo = new StandupsRepo(new GoogleSheetsTable<Standup>(sheets, 'Standups', STANDUP_COLUMNS, env.GOOGLE_SHEET_ID));
 
     return {
         env,
@@ -488,6 +547,10 @@ function createCommandContext(env: typeof ENV, logger: DiscordLogger): CommandCo
         }),
         milestones: new MilestoneService({
             milestones: milestonesRepo,
+            logs: logsRepo,
+        }),
+        standups: new StandupService({
+            standups: standupsRepo,
             logs: logsRepo,
         }),
         logger,
@@ -562,4 +625,36 @@ async function handleMilestoneAddModal(interaction: any, context: CommandContext
         else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
     }
 }
+
+async function handleStandupModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
+    try {
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+        const whatDone = interaction.fields.getTextInputValue('standup-what-done').trim();
+        const whatNext = interaction.fields.getTextInputValue('standup-what-next').trim();
+        const blockers = interaction.fields.getTextInputValue('standup-blockers').trim();
+
+        if (whatDone.length < 10 || whatNext.length < 10 || blockers.length < 10) {
+            await interaction.editReply({ content: 'Each field must be at least 10 characters long.' });
+            return;
+        }
+
+        const actor = {
+            id: interaction.user.id,
+            name: interaction.user.globalName ?? interaction.user.username,
+        };
+
+        await context.standups.submitStandup({ what_done: whatDone, what_next: whatNext, blockers }, actor);
+
+        await interaction.editReply({
+            content: 'Your daily standup has been recorded successfully.',
+        });
+    } catch (error) {
+        console.error('Standup modal failed:', error);
+        await logger.logError(error, 'Modal: standup').catch(() => {});
+        const msg = 'Failed to record standup.';
+        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
+        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
+    }
+}
+
 

@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "test": "tsc -p tsconfig.test.json && node --test dist-tests/tests/idea-service.test.js dist-tests/tests/decision-service.test.js dist-tests/tests/task-service.test.js dist-tests/tests/milestone-service.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test dist-tests/tests/idea-service.test.js dist-tests/tests/decision-service.test.js dist-tests/tests/task-service.test.js dist-tests/tests/milestone-service.test.js dist-tests/tests/standup-service.test.js"
   },
   "repository": {
     "type": "git",
