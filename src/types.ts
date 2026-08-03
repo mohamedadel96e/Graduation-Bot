@@ -125,3 +125,31 @@ export interface IdeaWithGrades {
     grades: GradeSummary;
     comments: CommentEntry[];
 }
+
+export const TASK_COLUMNS = [
+    'id',
+    'title',
+    'description',
+    'assignee',
+    'status',
+    'priority',
+    'created_at',
+    'updated_at',
+] as const;
+
+export const TASK_STATUSES = ['todo', 'in-progress', 'done'] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+export const TASK_PRIORITIES = ['High', 'Medium', 'Low'] as const;
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+
+export interface Task extends SheetRow {
+    id: string;
+    title: string;
+    description: string;
+    assignee: string;
+    status: TaskStatus;
+    priority: TaskPriority;
+    created_at: string;
+    updated_at: string;
+}

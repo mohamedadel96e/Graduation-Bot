@@ -12,6 +12,7 @@ import { DecisionRepo } from './sheets/decision.repo';
 import { GradesRepo } from './sheets/grades.repo';
 import { IdeasRepo } from './sheets/ideas.repo';
 import { LogsRepo } from './sheets/logs.repo';
+import { TasksRepo } from './sheets/tasks.repo';
 import {
     DECISION_COLUMNS,
     GRADE_COLUMNS,
@@ -25,11 +26,14 @@ import {
     type IdeaDifficulty,
     type LogEntry,
     type ProjectCategory,
+    TASK_COLUMNS,
+    type Task,
 } from './types';
 import { ideaEmbed } from './ui/embeds/idea';
 import { ideaActionButtons } from './ui/components/idea-buttons';
 import { ideaGradeModal } from './ui/modals/idea-grade';
 import { ideaCommentModal } from './ui/modals/idea-comment';
+import { TaskService } from './services/task-service';
 
 export interface GradBot {
     client: Client;
@@ -110,6 +114,8 @@ export function createGradBot(env = ENV): GradBot {
                 await handleIdeaGradeModal(interaction, context, discordLogger);
             } else if (interaction.customId.startsWith('modal-idea-comment_')) {
                 await handleIdeaCommentModal(interaction, context, discordLogger);
+            } else if (interaction.customId === 'modal-task-add') {
+                await handleTaskAddModal(interaction, context, discordLogger);
             }
             return;
         }
@@ -455,6 +461,7 @@ function createCommandContext(env: typeof ENV, logger: DiscordLogger): CommandCo
     const ideasRepo = new IdeasRepo(new GoogleSheetsTable<Idea>(sheets, 'Ideas', IDEA_COLUMNS, env.GOOGLE_SHEET_ID));
     const gradesRepo = new GradesRepo(new GoogleSheetsTable<Grade>(sheets, 'Grades', GRADE_COLUMNS, env.GOOGLE_SHEET_ID));
     const decisionRepo = new DecisionRepo(new GoogleSheetsTable<Decision>(sheets, 'Decisions', DECISION_COLUMNS, env.GOOGLE_SHEET_ID));
+    const tasksRepo = new TasksRepo(new GoogleSheetsTable<Task>(sheets, 'Tasks', TASK_COLUMNS, env.GOOGLE_SHEET_ID));
 
     return {
         env,
@@ -468,6 +475,46 @@ function createCommandContext(env: typeof ENV, logger: DiscordLogger): CommandCo
             ideas: ideasRepo,
             logs: logsRepo,
         }),
+        tasks: new TaskService({
+            tasks: tasksRepo,
+            logs: logsRepo,
+        }),
         logger,
     };
+}
+
+async function handleTaskAddModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
+    try {
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+        const title = interaction.fields.getTextInputValue('task-title');
+        const description = interaction.fields.getTextInputValue('task-description');
+        const rawPriority = interaction.fields.getTextInputValue('task-priority').trim();
+
+        // Validate priority
+        let priority: 'High' | 'Medium' | 'Low' = 'Medium';
+        const lowerP = rawPriority.toLowerCase();
+        if (lowerP === 'high') priority = 'High';
+        else if (lowerP === 'low') priority = 'Low';
+        else if (lowerP !== 'medium') {
+            await interaction.editReply({ content: `Invalid priority "${rawPriority}". Use: High, Medium, or Low.` });
+            return;
+        }
+
+        const actor = {
+            id: interaction.user.id,
+            name: interaction.user.globalName ?? interaction.user.username,
+        };
+
+        const task = await context.tasks.createTask({ title, description, priority }, actor);
+
+        await interaction.editReply({
+            content: `Task **${task.title}** created successfully. Use \`/task list\` to view all tasks.`,
+        });
+    } catch (error) {
+        console.error('Task add modal failed:', error);
+        await logger.logError(error, 'Modal: task-add').catch(() => {});
+        const msg = 'Failed to add task.';
+        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
+        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
+    }
 }

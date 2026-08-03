@@ -32,4 +32,15 @@ export class MemoryTable<T extends SheetRow> implements TableStore<T> {
         this.rows[index] = { ...this.rows[index], ...patch };
         return { ...this.rows[index] };
     }
+
+    async deleteById(id: string): Promise<boolean> {
+        const index = this.rows.findIndex((row) => row.id === id);
+
+        if (index === -1) {
+            return false;
+        }
+
+        this.rows.splice(index, 1);
+        return true;
+    }
 }
