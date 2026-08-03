@@ -13,6 +13,7 @@ import { GradesRepo } from './sheets/grades.repo';
 import { IdeasRepo } from './sheets/ideas.repo';
 import { LogsRepo } from './sheets/logs.repo';
 import { TasksRepo } from './sheets/tasks.repo';
+import { MilestonesRepo } from './sheets/milestones.repo';
 import {
     DECISION_COLUMNS,
     GRADE_COLUMNS,
@@ -28,12 +29,15 @@ import {
     type ProjectCategory,
     TASK_COLUMNS,
     type Task,
+    MILESTONE_COLUMNS,
+    type Milestone,
 } from './types';
 import { ideaEmbed } from './ui/embeds/idea';
 import { ideaActionButtons } from './ui/components/idea-buttons';
 import { ideaGradeModal } from './ui/modals/idea-grade';
 import { ideaCommentModal } from './ui/modals/idea-comment';
 import { TaskService } from './services/task-service';
+import { MilestoneService } from './services/milestone-service';
 
 export interface GradBot {
     client: Client;
@@ -116,6 +120,8 @@ export function createGradBot(env = ENV): GradBot {
                 await handleIdeaCommentModal(interaction, context, discordLogger);
             } else if (interaction.customId === 'modal-task-add') {
                 await handleTaskAddModal(interaction, context, discordLogger);
+            } else if (interaction.customId === 'modal-milestone-add') {
+                await handleMilestoneAddModal(interaction, context, discordLogger);
             }
             return;
         }
@@ -462,6 +468,7 @@ function createCommandContext(env: typeof ENV, logger: DiscordLogger): CommandCo
     const gradesRepo = new GradesRepo(new GoogleSheetsTable<Grade>(sheets, 'Grades', GRADE_COLUMNS, env.GOOGLE_SHEET_ID));
     const decisionRepo = new DecisionRepo(new GoogleSheetsTable<Decision>(sheets, 'Decisions', DECISION_COLUMNS, env.GOOGLE_SHEET_ID));
     const tasksRepo = new TasksRepo(new GoogleSheetsTable<Task>(sheets, 'Tasks', TASK_COLUMNS, env.GOOGLE_SHEET_ID));
+    const milestonesRepo = new MilestonesRepo(new GoogleSheetsTable<Milestone>(sheets, 'Milestones', MILESTONE_COLUMNS, env.GOOGLE_SHEET_ID));
 
     return {
         env,
@@ -477,6 +484,10 @@ function createCommandContext(env: typeof ENV, logger: DiscordLogger): CommandCo
         }),
         tasks: new TaskService({
             tasks: tasksRepo,
+            logs: logsRepo,
+        }),
+        milestones: new MilestoneService({
+            milestones: milestonesRepo,
             logs: logsRepo,
         }),
         logger,
@@ -518,3 +529,37 @@ async function handleTaskAddModal(interaction: any, context: CommandContext, log
         else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
     }
 }
+
+async function handleMilestoneAddModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
+    try {
+        await interaction.deferReply({ flags: ['Ephemeral'] });
+        const name = interaction.fields.getTextInputValue('milestone-name');
+        const description = interaction.fields.getTextInputValue('milestone-description');
+        const targetDate = interaction.fields.getTextInputValue('milestone-target-date').trim();
+
+        // Simple validation for DD/MM/YYYY format
+        const datePattern = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+        if (!datePattern.test(targetDate)) {
+            await interaction.editReply({ content: 'Invalid date format. Please use DD/MM/YYYY.' });
+            return;
+        }
+
+        const actor = {
+            id: interaction.user.id,
+            name: interaction.user.globalName ?? interaction.user.username,
+        };
+
+        const milestone = await context.milestones.createMilestone({ name, description, target_date: targetDate }, actor);
+
+        await interaction.editReply({
+            content: `Milestone **${milestone.name}** created successfully. Use \`/milestone list\` to view all milestones.`,
+        });
+    } catch (error) {
+        console.error('Milestone add modal failed:', error);
+        await logger.logError(error, 'Modal: milestone-add').catch(() => {});
+        const msg = 'Failed to add milestone.';
+        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
+        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
+    }
+}
+

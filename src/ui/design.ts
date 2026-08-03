@@ -51,4 +51,16 @@ export function gradeBar(value: number): string {
     return `${bar} ${value.toFixed(1)}`;
 }
 
+/**
+ * Renders a text-based progress bar for a percentage (0-100).
+ * Example: progressBar(60) → "██████░░░░ 60%"
+ */
+export function progressBar(percentage: number): string {
+    const clamped = Math.max(0, Math.min(100, percentage));
+    const filled = Math.round(clamped / 10); // 0-10
+    const empty = 10 - filled;
+    const bar = '█'.repeat(filled) + '░'.repeat(empty);
+    return `${bar} ${clamped}%`;
+}
+
 export const BOT_FOOTER = 'GradBot';
