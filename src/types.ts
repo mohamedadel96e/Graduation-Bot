@@ -177,3 +177,24 @@ export interface Milestone extends SheetRow {
     created_at: string;
 }
 
+export const STANDUP_COLUMNS = [
+    'id',
+    'user_id',
+    'date',
+    'what_done',
+    'what_next',
+    'blockers',
+    'created_at',
+] as const;
+
+export interface Standup extends SheetRow {
+    id: string;
+    user_id: string;
+    date: string; // Stored as YYYY-MM-DD
+    what_done: string;
+    what_next: string;
+    blockers: string;
+    created_at: string;
+}
+
+
