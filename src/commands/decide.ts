@@ -12,14 +12,21 @@ export const decideCommand: BotCommand = {
             subcommand
                 .setName('finalize')
                 .setDescription('Finalize a project idea. Team Lead or Bot Admin only.')
-                .addStringOption((option) => option.setName('id').setDescription('Idea ID.').setRequired(true)),
+                .addStringOption((option) =>
+                    option.setName('id').setDescription('Idea ID.').setRequired(true),
+                ),
         )
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('reasoning')
-                .setDescription('Add reasoning for the current decision. Team Lead or Bot Admin only.')
+                .setDescription(
+                    'Add reasoning for the current decision. Team Lead or Bot Admin only.',
+                )
                 .addStringOption((option) =>
-                    option.setName('text').setDescription('The reasoning behind this decision.').setRequired(true),
+                    option
+                        .setName('text')
+                        .setDescription('The reasoning behind this decision.')
+                        .setRequired(true),
                 ),
         )
         .addSubcommand((subcommand) =>
@@ -33,7 +40,9 @@ export const decideCommand: BotCommand = {
 
             if (subcommand === 'finalize') {
                 if (!canManageProject(interaction, context.env)) {
-                    await interaction.editReply({ content: 'Only a Team Lead or Bot Admin can finalize ideas.' });
+                    await interaction.editReply({
+                        content: 'Only a Team Lead or Bot Admin can finalize ideas.',
+                    });
                     return;
                 }
 
@@ -47,20 +56,27 @@ export const decideCommand: BotCommand = {
 
             if (subcommand === 'reasoning') {
                 if (!canManageProject(interaction, context.env)) {
-                    await interaction.editReply({ content: 'Only a Team Lead or Bot Admin can update decision reasoning.' });
+                    await interaction.editReply({
+                        content: 'Only a Team Lead or Bot Admin can update decision reasoning.',
+                    });
                     return;
                 }
 
-                const updated = await context.decisions.addReasoning(
+                await context.decisions.addReasoning(
                     interaction.options.getString('text', true),
                     actorFromInteraction(interaction),
                 );
 
                 const status = await context.decisions.getStatus();
                 if (status) {
-                    await interaction.editReply({ embeds: [decisionEmbed(status.decision, status.idea)] });
+                    await interaction.editReply({
+                        embeds: [decisionEmbed(status.decision, status.idea)],
+                    });
                 } else {
-                    await interaction.editReply({ content: 'Reasoning updated.', embeds: [noDecisionEmbed()] });
+                    await interaction.editReply({
+                        content: 'Reasoning updated.',
+                        embeds: [noDecisionEmbed()],
+                    });
                 }
                 return;
             }
@@ -68,7 +84,9 @@ export const decideCommand: BotCommand = {
             if (subcommand === 'status') {
                 const status = await context.decisions.getStatus();
                 if (status) {
-                    await interaction.editReply({ embeds: [decisionEmbed(status.decision, status.idea)] });
+                    await interaction.editReply({
+                        embeds: [decisionEmbed(status.decision, status.idea)],
+                    });
                 } else {
                     await interaction.editReply({ embeds: [noDecisionEmbed()] });
                 }
@@ -87,7 +105,9 @@ export const decideCommand: BotCommand = {
     },
 };
 
-function actorFromInteraction(interaction: { user: { id: string; username: string; globalName: string | null } }) {
+function actorFromInteraction(interaction: {
+    user: { id: string; username: string; globalName: string | null };
+}) {
     return {
         id: interaction.user.id,
         name: interaction.user.globalName ?? interaction.user.username,

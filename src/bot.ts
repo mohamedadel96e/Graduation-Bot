@@ -1,13 +1,12 @@
-import { Client, Collection, Events, GatewayIntentBits, TextChannel } from 'discord.js';
-import cron from 'node-cron';
+import { Client, Collection, GatewayIntentBits } from 'discord.js';
 import { ENV } from './config';
 import { createCommands } from './commands';
 import type { BotCommand, CommandContext } from './commands/types';
 import { registerGuildCommands } from './discord/registerCommands';
 import { DecisionService } from './services/decision-service';
-import { IdeaService, UserFacingError } from './services/idea-service';
+import { IdeaService } from './services/idea-service';
 import { DiscordLogger } from './services/logger';
-import { getSheetsClient, testSheetConnection } from './sheets/client';
+import { getSheetsClient } from './sheets/client';
 import { GoogleSheetsTable } from './sheets/sheet-table';
 import { DecisionRepo } from './sheets/decision.repo';
 import { GradesRepo } from './sheets/grades.repo';
@@ -20,29 +19,24 @@ import {
     DECISION_COLUMNS,
     GRADE_COLUMNS,
     IDEA_COLUMNS,
-    IDEA_DIFFICULTIES,
     LOG_COLUMNS,
-    PROJECT_CATEGORIES,
+    TASK_COLUMNS,
+    MILESTONE_COLUMNS,
+    STANDUP_COLUMNS,
     type Decision,
     type Grade,
     type Idea,
-    type IdeaDifficulty,
     type LogEntry,
-    type ProjectCategory,
-    TASK_COLUMNS,
     type Task,
-    MILESTONE_COLUMNS,
     type Milestone,
-    STANDUP_COLUMNS,
     type Standup,
 } from './types';
-import { ideaEmbed } from './ui/embeds/idea';
-import { ideaActionButtons } from './ui/components/idea-buttons';
-import { ideaGradeModal } from './ui/modals/idea-grade';
-import { ideaCommentModal } from './ui/modals/idea-comment';
 import { TaskService } from './services/task-service';
 import { MilestoneService } from './services/milestone-service';
 import { StandupService } from './services/standup-service';
+import { scheduleStandupDigest } from './cron/standup-digest';
+import { setupReadyEvent } from './events/ready';
+import { setupInteractionCreateEvent } from './events/interactionCreate';
 
 export interface GradBot {
     client: Client;
@@ -80,157 +74,17 @@ export function createGradBot(env = ENV): GradBot {
         });
     };
 
-    // Schedule Daily Digest Cron Job at 00:00 UTC
-    cron.schedule('0 0 * * *', async () => {
-        try {
-            console.log('Running daily standup digest cron job...');
-            
-            // Channel ID specified by user
-            const channelId = env.STANDUP_CHANNEL_ID;
-            if (!channelId) {
-                console.error('STANDUP_CHANNEL_ID is not set in environment.');
-                return;
-            }
-
-            const channel = await client.channels.fetch(channelId);
-            if (!channel || !channel.isTextBased()) {
-                console.error(`Could not find text channel with ID ${channelId} for standup digest.`);
-                return;
-            }
-
-            // Get yesterday's date in YYYY-MM-DD
-            const d = new Date();
-            d.setDate(d.getDate() - 1); // Get previous day since we are running at 00:00
-            const year = d.getUTCFullYear();
-            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-            const day = String(d.getUTCDate()).padStart(2, '0');
-            const targetDateStr = `${year}-${month}-${day}`;
-
-            const standups = await context.standups.getStandupsByDate(targetDateStr);
-            const textChannel = channel as TextChannel;
-
-            if (standups.length === 0) {
-                await textChannel.send(`No standups were submitted for ${targetDateStr}.`);
-                return;
-            }
-
-            let digest = `**Daily Standup Digest for ${targetDateStr}**\n\n`;
-            for (const s of standups) {
-                digest += `**<@${s.user_id}>**\n`;
-                digest += `**Done:** ${s.what_done}\n`;
-                digest += `**Next:** ${s.what_next}\n`;
-                digest += `**Blockers:** ${s.blockers}\n\n`;
-            }
-
-            await textChannel.send({ content: digest });
-        } catch (error) {
-            console.error('Failed to run daily standup digest:', error);
-            discordLogger.logError(error, 'Cron: daily-standup-digest').catch(() => {});
-        }
-    }, {
-        timezone: 'UTC'
-    });
+    // Schedule Daily Digest Cron Job
+    scheduleStandupDigest(client, context, discordLogger);
 
     // Prevent unhandled errors from crashing the process
     client.on('error', (error) => {
         console.error('Discord client error:', error);
     });
 
-    client.once(Events.ClientReady, async (readyClient) => {
-        console.log(`Logged in as ${readyClient.user.tag}`);
-
-        // Initialize the Discord logger (resolve channel references)
-        await discordLogger.init();
-
-        // Test Google Sheets connection
-        if (env.GOOGLE_SHEET_ID && env.GOOGLE_PRIVATE_KEY && env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
-            const sheetsOk = await testSheetConnection(env);
-            if (sheetsOk) {
-                await discordLogger.logSystem(
-                    `**GradBot is online!**\n` +
-                    `Connected to Google Sheets.\n` +
-                    `Ready to manage your graduation project.\n\n` +
-                    `Use \`/idea add\` to submit a new idea.`,
-                );
-            } else {
-                await discordLogger.logError('Google Sheets connection failed on startup.', 'ClientReady');
-            }
-        } else {
-            console.warn('Google Sheets configuration is missing from .env, skipping connection test.');
-            await discordLogger.logSystem(
-                `**GradBot is online!**\n` +
-                `Google Sheets is **not configured** — data will not be persisted.\n` +
-                `Add GOOGLE_SHEET_ID, GOOGLE_PRIVATE_KEY, and GOOGLE_SERVICE_ACCOUNT_EMAIL to .env.`,
-            );
-        }
-    });
-
-    client.on(Events.InteractionCreate, async (interaction) => {
-        // Handle modal submissions
-        if (interaction.isModalSubmit()) {
-            if (interaction.customId === 'modal-idea-add') {
-                await handleIdeaAddModal(interaction, context, discordLogger);
-            } else if (interaction.customId.startsWith('modal-idea-grade_')) {
-                await handleIdeaGradeModal(interaction, context, discordLogger);
-            } else if (interaction.customId.startsWith('modal-idea-comment_')) {
-                await handleIdeaCommentModal(interaction, context, discordLogger);
-            } else if (interaction.customId === 'modal-task-add') {
-                await handleTaskAddModal(interaction, context, discordLogger);
-            } else if (interaction.customId === 'modal-milestone-add') {
-                await handleMilestoneAddModal(interaction, context, discordLogger);
-            } else if (interaction.customId === 'modal-standup') {
-                await handleStandupModal(interaction, context, discordLogger);
-            }
-            return;
-        }
-
-        // Handle button clicks
-        if (interaction.isButton()) {
-            if (interaction.customId.startsWith('grade_')) {
-                const ideaId = interaction.customId.replace('grade_', '');
-                await interaction.showModal(ideaGradeModal(ideaId));
-            } else if (interaction.customId.startsWith('add_comment_')) {
-                const ideaId = interaction.customId.replace('add_comment_', '');
-                await interaction.showModal(ideaCommentModal(ideaId));
-            } else if (interaction.customId.startsWith('comments_')) {
-                const ideaId = interaction.customId.replace('comments_', '');
-                await handleViewCommentsButton(interaction, ideaId, context, discordLogger);
-            }
-            return;
-        }
-
-        if (!interaction.isChatInputCommand()) {
-            return;
-        }
-
-        const command = commandMap.get(interaction.commandName);
-
-        if (!command) {
-            await interaction.reply({ content: 'Unknown command.', flags: ['Ephemeral'] });
-            return;
-        }
-
-        try {
-            await command.execute(interaction, context);
-        } catch (error) {
-            console.error(`Command ${interaction.commandName} failed:`, error);
-
-            // Log the error to #bot-errors
-            await discordLogger.logError(error, `Command: /${interaction.commandName}`).catch(() => {});
-
-            try {
-                const content = 'Something went wrong while running that command.';
-                if (interaction.deferred || interaction.replied) {
-                    await interaction.editReply({ content });
-                } else {
-                    await interaction.reply({ content, flags: ['Ephemeral'] });
-                }
-            } catch {
-                // Interaction is fully expired — nothing we can do
-                console.error('Could not send error response to user (interaction expired).');
-            }
-        }
-    });
+    // Setup Discord Events
+    setupReadyEvent(client, discordLogger, env);
+    setupInteractionCreateEvent(client, commandMap, context, discordLogger);
 
     return {
         client,
@@ -247,287 +101,37 @@ export function createGradBot(env = ENV): GradBot {
     };
 }
 
-// ─── Modal Handlers ──────────────────────────────────────────────────────────
-
-async function handleIdeaAddModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
-    try {
-        await interaction.deferReply();
-        const title = interaction.fields.getTextInputValue('idea-title');
-        const description = interaction.fields.getTextInputValue('idea-description');
-        const rawDifficulty = interaction.fields.getTextInputValue('idea-difficulty').trim();
-        const rawCategory = interaction.fields.getTextInputValue('idea-category').trim();
-
-        // Validate difficulty
-        const difficulty = normalizeDifficulty(rawDifficulty);
-        if (!difficulty) {
-            await interaction.editReply({ content: `Invalid difficulty "${rawDifficulty}". Use: Easy, Medium, or Hard.` });
-            return;
-        }
-
-        // Validate category
-        const category = normalizeCategory(rawCategory);
-        if (!category) {
-            await interaction.editReply({ content: `Invalid category "${rawCategory}". Use: ${PROJECT_CATEGORIES.join(', ')}.` });
-            return;
-        }
-
-        const actor = {
-            id: interaction.user.id,
-            name: interaction.user.globalName ?? interaction.user.username,
-        };
-
-        const idea = await context.ideas.createIdea(
-            { title, description, techStack: '', difficulty, category },
-            actor,
-        );
-
-        const detailed = await context.ideas.getIdea(idea.id);
-        await interaction.editReply({
-            content: `Idea **${idea.title}** submitted successfully. Check <#${context.env.DISCUSSION_CHANNEL_ID}> for the discussion thread.`,
-        });
-
-        if (context.env.DISCUSSION_CHANNEL_ID) {
-            try {
-                const discussionChannel = await interaction.client.channels.fetch(context.env.DISCUSSION_CHANNEL_ID);
-                if (discussionChannel?.isTextBased()) {
-                    const textChannel = discussionChannel as TextChannel;
-                    const message = await textChannel.send({
-                        content: `Discussion thread for Idea: **${idea.title}**`,
-                        embeds: [ideaEmbed(detailed)],
-                        components: [ideaActionButtons(idea.id)],
-                    });
-                    const threadName = `Discussion: ${idea.title}`.slice(0, 100);
-                    const thread = await message.startThread({ name: threadName });
-                    await context.ideas.updateIdeaThread(idea.id, thread.id);
-                }
-            } catch (err) {
-                console.error('Thread creation failed in discussion channel:', err);
-            }
-        }
-    } catch (error) {
-        console.error('Idea add modal failed:', error);
-        await logger.logError(error, 'Modal: idea-add').catch(() => {});
-        const msg = error instanceof UserFacingError ? error.message : 'Failed to add idea.';
-        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
-        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
-    }
-}
-
-async function handleIdeaGradeModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
-    try {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-
-        // customId is like 'modal-idea-grade_id-123'
-        const ideaId = interaction.customId.replace('modal-idea-grade_', '');
-
-        const rawL = interaction.fields.getTextInputValue('grade-learning');
-        const rawI = interaction.fields.getTextInputValue('grade-impact');
-        const rawF = interaction.fields.getTextInputValue('grade-feasibility');
-        const rawN = interaction.fields.getTextInputValue('grade-innovation');
-
-        const learning = parseGradeValue(rawL);
-        const impact = parseGradeValue(rawI);
-        const feasibility = parseGradeValue(rawF);
-        const innovation = parseGradeValue(rawN);
-
-        if (learning === null || impact === null || feasibility === null || innovation === null) {
-            await interaction.editReply({ content: 'All grades must be a number between 1 and 5.' });
-            return;
-        }
-
-        const actor = {
-            id: interaction.user.id,
-            name: interaction.user.globalName ?? interaction.user.username,
-        };
-
-        const row = await context.ideas.gradeIdea(ideaId, { learning, impact, feasibility, innovation }, actor);
-        await interaction.editReply({ content: `Grade saved for **${row.idea.title}** (Overall: ${row.grades.overall.toFixed(1)}/5).` });
-
-        // Update the original message's embed to reflect the new grades
-        try {
-            await interaction.message.edit({
-                embeds: [ideaEmbed(row)],
-                components: [ideaActionButtons(row.idea.id)],
-            });
-        } catch {
-            // Best effort update of original embed
-        }
-
-        // Update the voting results channel message
-        if (context.env.VOTING_RESULTS_CHANNEL_ID) {
-            try {
-                const resultsChannel = await interaction.client.channels.fetch(context.env.VOTING_RESULTS_CHANNEL_ID);
-                if (resultsChannel?.isTextBased()) {
-                    const textChannel = resultsChannel as TextChannel;
-                    if (row.idea.voting_message_id) {
-                        try {
-                            const votingMessage = await textChannel.messages.fetch(row.idea.voting_message_id);
-                            await votingMessage.edit({
-                                embeds: [ideaEmbed(row)],
-                                components: [ideaActionButtons(row.idea.id)],
-                            });
-                        } catch (err) {
-                            console.error('Could not fetch existing voting message:', err);
-                        }
-                    } else {
-                        const votingMessage = await textChannel.send({
-                            embeds: [ideaEmbed(row)],
-                            components: [ideaActionButtons(row.idea.id)],
-                        });
-                        await context.ideas.updateVotingMessageId(row.idea.id, votingMessage.id);
-                    }
-                }
-            } catch (err) {
-                console.error('Voting results channel update failed:', err);
-            }
-        }
-    } catch (error) {
-        console.error('Grade modal failed:', error);
-        await logger.logError(error, 'Modal: idea-grade').catch(() => {});
-        const msg = error instanceof UserFacingError ? error.message : 'Failed to save grade.';
-        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
-        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
-    }
-}
-
-async function handleIdeaCommentModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
-    try {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-
-        const ideaId = interaction.customId.replace('modal-idea-comment_', '');
-        const text = interaction.fields.getTextInputValue('comment-text').trim();
-
-        if (!text) {
-            await interaction.editReply({ content: 'Comment cannot be empty.' });
-            return;
-        }
-
-        const actor = {
-            id: interaction.user.id,
-            name: interaction.user.globalName ?? interaction.user.username,
-        };
-
-        const idea = await context.ideas.commentOnIdea(ideaId, text, actor);
-        await interaction.editReply({ content: `Comment added to **${idea.title}**.` });
-
-        // Try to post it to the thread
-        if (idea.thread_id && interaction.guild) {
-            try {
-                const channel = await interaction.guild.channels.fetch(idea.thread_id);
-                if (channel?.isTextBased()) {
-                    await (channel as TextChannel).send(`**${actor.name}** commented:\n> ${text}`);
-                }
-            } catch (err) {
-                console.error('Thread posting failed for comment modal:', err);
-            }
-        }
-
-        // We also want to update the original message and voting card since the embed shows "last 5 comments"
-        try {
-            const row = await context.ideas.getIdea(idea.id);
-            // Update original message (could be in list or discussion channel)
-            try {
-                await interaction.message.edit({
-                    embeds: [ideaEmbed(row)],
-                    components: [ideaActionButtons(row.idea.id)],
-                });
-            } catch {
-                // best effort
-            }
-
-            // Update voting card if it exists
-            if (context.env.VOTING_RESULTS_CHANNEL_ID && row.idea.voting_message_id) {
-                try {
-                    const resultsChannel = await interaction.client.channels.fetch(context.env.VOTING_RESULTS_CHANNEL_ID);
-                    if (resultsChannel?.isTextBased()) {
-                        const textChannel = resultsChannel as TextChannel;
-                        const votingMessage = await textChannel.messages.fetch(row.idea.voting_message_id);
-                        await votingMessage.edit({
-                            embeds: [ideaEmbed(row)],
-                            components: [ideaActionButtons(row.idea.id)],
-                        });
-                    }
-                } catch (err) {
-                    console.error('Could not update voting card with comment:', err);
-                }
-            }
-        } catch (err) {
-            console.error('Could not refresh embed with comment:', err);
-        }
-
-    } catch (error) {
-        console.error('Comment modal failed:', error);
-        await logger.logError(error, 'Modal: idea-comment').catch(() => {});
-        const msg = error instanceof UserFacingError ? error.message : 'Failed to add comment.';
-        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
-        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
-    }
-}
-
-async function handleViewCommentsButton(interaction: any, ideaId: string, context: CommandContext, logger: DiscordLogger) {
-    try {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-        const comments = await context.ideas.getCommentsForIdea(ideaId);
-        
-        if (comments.length === 0) {
-            await interaction.editReply({ content: 'There are no comments on this idea yet.' });
-            return;
-        }
-
-        const lines = comments.map(c => `**${c.actor_name}** (${new Date(c.timestamp).toLocaleString()}):\n> ${c.text}`);
-        
-        // Discord max message length is 2000, so we slice if it gets too long
-        let content = `**Comments:**\n\n${lines.join('\n\n')}`;
-        if (content.length > 2000) {
-            content = content.slice(0, 1950) + '\n\n... (some comments were truncated)';
-        }
-
-        await interaction.editReply({ content });
-    } catch (error) {
-        console.error('View comments button failed:', error);
-        await logger.logError(error, 'Button: comments').catch(() => {});
-        const msg = 'Failed to load comments.';
-        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
-        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
-    }
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function normalizeDifficulty(raw: string): IdeaDifficulty | null {
-    const lower = raw.toLowerCase();
-    for (const d of IDEA_DIFFICULTIES) {
-        if (d.toLowerCase() === lower) return d;
-    }
-    return null;
-}
-
-function normalizeCategory(raw: string): ProjectCategory | null {
-    const lower = raw.toLowerCase().replace(/\s+/g, '');
-    for (const c of PROJECT_CATEGORIES) {
-        if (c.toLowerCase().replace(/\s+/g, '') === lower) return c;
-    }
-    return null;
-}
-
-function parseGradeValue(raw: string): number | null {
-    const n = Number(raw.trim());
-    if (Number.isNaN(n) || n < 1 || n > 5 || !Number.isInteger(n)) return null;
-    return n;
-}
-
 // ─── Context Factory ─────────────────────────────────────────────────────────
 
 function createCommandContext(env: typeof ENV, logger: DiscordLogger): CommandContext {
     const sheets = getSheetsClient(env);
 
-    const logsRepo = new LogsRepo(new GoogleSheetsTable<LogEntry>(sheets, 'Logs', LOG_COLUMNS, env.GOOGLE_SHEET_ID));
-    const ideasRepo = new IdeasRepo(new GoogleSheetsTable<Idea>(sheets, 'Ideas', IDEA_COLUMNS, env.GOOGLE_SHEET_ID));
-    const gradesRepo = new GradesRepo(new GoogleSheetsTable<Grade>(sheets, 'Grades', GRADE_COLUMNS, env.GOOGLE_SHEET_ID));
-    const decisionRepo = new DecisionRepo(new GoogleSheetsTable<Decision>(sheets, 'Decisions', DECISION_COLUMNS, env.GOOGLE_SHEET_ID));
-    const tasksRepo = new TasksRepo(new GoogleSheetsTable<Task>(sheets, 'Tasks', TASK_COLUMNS, env.GOOGLE_SHEET_ID));
-    const milestonesRepo = new MilestonesRepo(new GoogleSheetsTable<Milestone>(sheets, 'Milestones', MILESTONE_COLUMNS, env.GOOGLE_SHEET_ID));
-    const standupsRepo = new StandupsRepo(new GoogleSheetsTable<Standup>(sheets, 'Standups', STANDUP_COLUMNS, env.GOOGLE_SHEET_ID));
+    const logsRepo = new LogsRepo(
+        new GoogleSheetsTable<LogEntry>(sheets, 'Logs', LOG_COLUMNS, env.GOOGLE_SHEET_ID),
+    );
+    const ideasRepo = new IdeasRepo(
+        new GoogleSheetsTable<Idea>(sheets, 'Ideas', IDEA_COLUMNS, env.GOOGLE_SHEET_ID),
+    );
+    const gradesRepo = new GradesRepo(
+        new GoogleSheetsTable<Grade>(sheets, 'Grades', GRADE_COLUMNS, env.GOOGLE_SHEET_ID),
+    );
+    const decisionRepo = new DecisionRepo(
+        new GoogleSheetsTable<Decision>(sheets, 'Decisions', DECISION_COLUMNS, env.GOOGLE_SHEET_ID),
+    );
+    const tasksRepo = new TasksRepo(
+        new GoogleSheetsTable<Task>(sheets, 'Tasks', TASK_COLUMNS, env.GOOGLE_SHEET_ID),
+    );
+    const milestonesRepo = new MilestonesRepo(
+        new GoogleSheetsTable<Milestone>(
+            sheets,
+            'Milestones',
+            MILESTONE_COLUMNS,
+            env.GOOGLE_SHEET_ID,
+        ),
+    );
+    const standupsRepo = new StandupsRepo(
+        new GoogleSheetsTable<Standup>(sheets, 'Standups', STANDUP_COLUMNS, env.GOOGLE_SHEET_ID),
+    );
 
     return {
         env,
@@ -556,105 +160,3 @@ function createCommandContext(env: typeof ENV, logger: DiscordLogger): CommandCo
         logger,
     };
 }
-
-async function handleTaskAddModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
-    try {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-        const title = interaction.fields.getTextInputValue('task-title');
-        const description = interaction.fields.getTextInputValue('task-description');
-        const rawPriority = interaction.fields.getTextInputValue('task-priority').trim();
-
-        // Validate priority
-        let priority: 'High' | 'Medium' | 'Low' = 'Medium';
-        const lowerP = rawPriority.toLowerCase();
-        if (lowerP === 'high') priority = 'High';
-        else if (lowerP === 'low') priority = 'Low';
-        else if (lowerP !== 'medium') {
-            await interaction.editReply({ content: `Invalid priority "${rawPriority}". Use: High, Medium, or Low.` });
-            return;
-        }
-
-        const actor = {
-            id: interaction.user.id,
-            name: interaction.user.globalName ?? interaction.user.username,
-        };
-
-        const task = await context.tasks.createTask({ title, description, priority }, actor);
-
-        await interaction.editReply({
-            content: `Task **${task.title}** created successfully. Use \`/task list\` to view all tasks.`,
-        });
-    } catch (error) {
-        console.error('Task add modal failed:', error);
-        await logger.logError(error, 'Modal: task-add').catch(() => {});
-        const msg = 'Failed to add task.';
-        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
-        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
-    }
-}
-
-async function handleMilestoneAddModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
-    try {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-        const name = interaction.fields.getTextInputValue('milestone-name');
-        const description = interaction.fields.getTextInputValue('milestone-description');
-        const targetDate = interaction.fields.getTextInputValue('milestone-target-date').trim();
-
-        // Simple validation for DD/MM/YYYY format
-        const datePattern = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-        if (!datePattern.test(targetDate)) {
-            await interaction.editReply({ content: 'Invalid date format. Please use DD/MM/YYYY.' });
-            return;
-        }
-
-        const actor = {
-            id: interaction.user.id,
-            name: interaction.user.globalName ?? interaction.user.username,
-        };
-
-        const milestone = await context.milestones.createMilestone({ name, description, target_date: targetDate }, actor);
-
-        await interaction.editReply({
-            content: `Milestone **${milestone.name}** created successfully. Use \`/milestone list\` to view all milestones.`,
-        });
-    } catch (error) {
-        console.error('Milestone add modal failed:', error);
-        await logger.logError(error, 'Modal: milestone-add').catch(() => {});
-        const msg = 'Failed to add milestone.';
-        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
-        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
-    }
-}
-
-async function handleStandupModal(interaction: any, context: CommandContext, logger: DiscordLogger) {
-    try {
-        await interaction.deferReply({ flags: ['Ephemeral'] });
-        const whatDone = interaction.fields.getTextInputValue('standup-what-done').trim();
-        const whatNext = interaction.fields.getTextInputValue('standup-what-next').trim();
-        const blockers = interaction.fields.getTextInputValue('standup-blockers').trim();
-
-        if (whatDone.length < 10 || whatNext.length < 10 || blockers.length < 10) {
-            await interaction.editReply({ content: 'Each field must be at least 10 characters long.' });
-            return;
-        }
-
-        const actor = {
-            id: interaction.user.id,
-            name: interaction.user.globalName ?? interaction.user.username,
-        };
-
-        await context.standups.submitStandup({ what_done: whatDone, what_next: whatNext, blockers }, actor);
-
-        await interaction.editReply({
-            content: 'Your daily standup has been recorded successfully.',
-        });
-    } catch (error) {
-        console.error('Standup modal failed:', error);
-        await logger.logError(error, 'Modal: standup').catch(() => {});
-        const msg = 'Failed to record standup.';
-        if (interaction.deferred || interaction.replied) await interaction.editReply({ content: msg });
-        else await interaction.reply({ content: msg, flags: ['Ephemeral'] });
-    }
-}
-
-

@@ -49,7 +49,11 @@ describe('IdeaService', () => {
             },
             actor,
         );
-        await service.gradeIdea(idea.id, { learning: 4, impact: 3, feasibility: 5, innovation: 2 }, grader);
+        await service.gradeIdea(
+            idea.id,
+            { learning: 4, impact: 3, feasibility: 5, innovation: 2 },
+            grader,
+        );
 
         const rows = await service.listIdeas();
         assert.equal(rows.length, 1);
@@ -75,8 +79,16 @@ describe('IdeaService', () => {
             actor,
         );
 
-        await service.gradeIdea(idea.id, { learning: 3, impact: 3, feasibility: 3, innovation: 3 }, grader);
-        const updated = await service.gradeIdea(idea.id, { learning: 5, impact: 5, feasibility: 5, innovation: 5 }, grader);
+        await service.gradeIdea(
+            idea.id,
+            { learning: 3, impact: 3, feasibility: 3, innovation: 3 },
+            grader,
+        );
+        const updated = await service.gradeIdea(
+            idea.id,
+            { learning: 5, impact: 5, feasibility: 5, innovation: 5 },
+            grader,
+        );
 
         assert.equal(updated.grades.count, 1);
         assert.equal(updated.grades.overall, 5);
@@ -227,7 +239,11 @@ describe('IdeaService', () => {
             author,
         );
 
-        await service.gradeIdea(idea.id, { learning: 4, impact: 5, feasibility: 3, innovation: 4 }, grader);
+        await service.gradeIdea(
+            idea.id,
+            { learning: 4, impact: 5, feasibility: 3, innovation: 4 },
+            grader,
+        );
         await service.commentOnIdea(idea.id, 'Looks great!', grader);
 
         const result = await service.getIdea(idea.id);

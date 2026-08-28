@@ -6,7 +6,7 @@ function getMilestoneStatusColor(status: Milestone['status'], isPastDue: boolean
     if (isPastDue && status !== 'completed' && status !== 'archived') {
         return PALETTE.error;
     }
-    
+
     switch (status) {
         case 'planned':
             return PALETTE.forest;
@@ -37,7 +37,7 @@ function parseDate(dateStr: string): Date | null {
 function isPastDue(dateStr: string): boolean {
     const target = parseDate(dateStr);
     if (!target) return false;
-    
+
     // Set to end of the target day
     target.setHours(23, 59, 59, 999);
     return new Date().getTime() > target.getTime();
@@ -46,7 +46,7 @@ function isPastDue(dateStr: string): boolean {
 export function milestoneEmbed(milestone: Milestone): EmbedBuilder {
     const pastDue = isPastDue(milestone.target_date);
     const numProgress = parseInt(milestone.progress, 10) || 0;
-    
+
     let statusText = milestone.status;
     if (pastDue && milestone.status !== 'completed' && milestone.status !== 'archived') {
         statusText += ' ⚠️ (Past Due)';
@@ -67,7 +67,7 @@ export function milestoneEmbed(milestone: Milestone): EmbedBuilder {
 
 export function milestoneListEmbed(milestones: Milestone[], statusFilter?: string): EmbedBuilder {
     const title = statusFilter ? `Milestones (${statusFilter})` : 'All Milestones';
-    
+
     if (milestones.length === 0) {
         return new EmbedBuilder()
             .setColor(PALETTE.forest)
@@ -75,17 +75,18 @@ export function milestoneListEmbed(milestones: Milestone[], statusFilter?: strin
             .setDescription('No milestones found.');
     }
 
-    const embed = new EmbedBuilder()
-        .setColor(PALETTE.sage)
-        .setTitle(title);
+    const embed = new EmbedBuilder().setColor(PALETTE.sage).setTitle(title);
 
     const descriptionLines = milestones.map((m) => {
         const pastDue = isPastDue(m.target_date);
-        const pastDueMarker = (pastDue && m.status !== 'completed' && m.status !== 'archived') ? '⚠️' : '';
+        const pastDueMarker =
+            pastDue && m.status !== 'completed' && m.status !== 'archived' ? '⚠️' : '';
         const numProgress = parseInt(m.progress, 10) || 0;
-        
-        return `**[${m.status}]** ${m.name} (\`${m.id}\`) ${pastDueMarker}\n` +
-               `Target: ${m.target_date} | ${progressBar(numProgress)}\n`;
+
+        return (
+            `**[${m.status}]** ${m.name} (\`${m.id}\`) ${pastDueMarker}\n` +
+            `Target: ${m.target_date} | ${progressBar(numProgress)}\n`
+        );
     });
 
     embed.setDescription(descriptionLines.join('\n'));

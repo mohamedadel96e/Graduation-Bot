@@ -40,7 +40,14 @@ export const LOG_COLUMNS = [
     'detail',
 ] as const;
 
-export const DECISION_COLUMNS = ['id', 'idea_id', 'reasoning', 'decided_by', 'decided_by_name', 'decided_at'] as const;
+export const DECISION_COLUMNS = [
+    'id',
+    'idea_id',
+    'reasoning',
+    'decided_by',
+    'decided_by_name',
+    'decided_at',
+] as const;
 
 export const IDEA_DIFFICULTIES = ['Easy', 'Medium', 'Hard'] as const;
 export type IdeaDifficulty = (typeof IDEA_DIFFICULTIES)[number];
@@ -48,7 +55,15 @@ export type IdeaDifficulty = (typeof IDEA_DIFFICULTIES)[number];
 export const IDEA_STATUSES = ['Active', 'Finalized', 'Archived'] as const;
 export type IdeaStatus = (typeof IDEA_STATUSES)[number];
 
-export const PROJECT_CATEGORIES = ['B2B', 'Fintech', 'EdTech', 'HealthTech', 'Social', 'Dev Tools', 'Other'] as const;
+export const PROJECT_CATEGORIES = [
+    'B2B',
+    'Fintech',
+    'EdTech',
+    'HealthTech',
+    'Social',
+    'Dev Tools',
+    'Other',
+] as const;
 export type ProjectCategory = (typeof PROJECT_CATEGORIES)[number];
 
 export interface Actor {
@@ -196,5 +211,3 @@ export interface Standup extends SheetRow {
     blockers: string;
     created_at: string;
 }
-
-

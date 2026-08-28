@@ -57,7 +57,11 @@ export class DiscordLogger {
             .setTitle(formatActionType(entry.action_type))
             .setDescription(entry.detail || 'No detail.')
             .addFields(
-                { name: 'Actor', value: entry.actor_name || entry.actor_id || 'System', inline: true },
+                {
+                    name: 'Actor',
+                    value: entry.actor_name || entry.actor_id || 'System',
+                    inline: true,
+                },
                 { name: 'Target', value: entry.target_id || '—', inline: true },
                 { name: 'Log ID', value: entry.id, inline: true },
             )

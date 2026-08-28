@@ -32,7 +32,9 @@ export class DecisionService {
         }
 
         if (idea.status !== 'Active') {
-            throw new UserFacingError(`Idea ${ideaId} is ${idea.status.toLowerCase()} and cannot be finalized.`);
+            throw new UserFacingError(
+                `Idea ${ideaId} is ${idea.status.toLowerCase()} and cannot be finalized.`,
+            );
         }
 
         // Check if a decision already exists for this idea
@@ -63,7 +65,14 @@ export class DecisionService {
             throw new UserFacingError(`Failed to update idea ${ideaId} status.`);
         }
 
-        await this.log(actor, 'decision.finalize', idea.id, idea, updatedIdea, `Finalized idea "${idea.title}".`);
+        await this.log(
+            actor,
+            'decision.finalize',
+            idea.id,
+            idea,
+            updatedIdea,
+            `Finalized idea "${idea.title}".`,
+        );
 
         return { decision, idea: updatedIdea };
     }
@@ -81,7 +90,14 @@ export class DecisionService {
             throw new UserFacingError('Failed to update decision reasoning.');
         }
 
-        await this.log(actor, 'decision.reasoning', latest.idea_id, latest, updated, `Updated reasoning for decision on idea "${latest.idea_id}".`);
+        await this.log(
+            actor,
+            'decision.reasoning',
+            latest.idea_id,
+            latest,
+            updated,
+            `Updated reasoning for decision on idea "${latest.idea_id}".`,
+        );
 
         return updated;
     }

@@ -1,9 +1,7 @@
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 export function standupModal(): ModalBuilder {
-    const modal = new ModalBuilder()
-        .setCustomId('modal-standup')
-        .setTitle('Daily Standup');
+    const modal = new ModalBuilder().setCustomId('modal-standup').setTitle('Daily Standup');
 
     const doneInput = new TextInputBuilder()
         .setCustomId('standup-what-done')

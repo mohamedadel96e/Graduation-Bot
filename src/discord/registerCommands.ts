@@ -2,9 +2,14 @@ import { REST, Routes } from 'discord.js';
 import type { ENV } from '../config';
 import type { BotCommand } from '../commands/types';
 
-export async function registerGuildCommands(commands: BotCommand[], env: typeof ENV): Promise<void> {
+export async function registerGuildCommands(
+    commands: BotCommand[],
+    env: typeof ENV,
+): Promise<void> {
     if (!env.DISCORD_TOKEN || !env.DISCORD_CLIENT_ID || !env.DISCORD_GUILD_ID) {
-        console.warn('Discord command registration skipped. DISCORD_TOKEN, DISCORD_CLIENT_ID, or DISCORD_GUILD_ID is missing.');
+        console.warn(
+            'Discord command registration skipped. DISCORD_TOKEN, DISCORD_CLIENT_ID, or DISCORD_GUILD_ID is missing.',
+        );
         return;
     }
 

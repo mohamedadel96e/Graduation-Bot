@@ -97,7 +97,9 @@ export class IdeaService {
         const idea = await this.requireIdea(id);
 
         if (idea.status !== 'Active') {
-            throw new UserFacingError(`Idea ${id} is ${idea.status.toLowerCase()} and cannot be graded.`);
+            throw new UserFacingError(
+                `Idea ${id} is ${idea.status.toLowerCase()} and cannot be graded.`,
+            );
         }
 
         const grade: Grade = {

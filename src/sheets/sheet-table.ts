@@ -56,9 +56,7 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
             throw new Error(`${this.sheetName} sheet is missing required "id" header.`);
         }
 
-        const bodyRowIndex = values
-            .slice(1)
-            .findIndex((row) => row[idColumnIndex] === id);
+        const bodyRowIndex = values.slice(1).findIndex((row) => row[idColumnIndex] === id);
 
         if (bodyRowIndex === -1) {
             return null;
@@ -89,9 +87,7 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
             return false;
         }
 
-        const bodyRowIndex = values
-            .slice(1)
-            .findIndex((row) => row[idColumnIndex] === id);
+        const bodyRowIndex = values.slice(1).findIndex((row) => row[idColumnIndex] === id);
 
         if (bodyRowIndex === -1) {
             return false;
@@ -99,7 +95,7 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
 
         const sheetRowNumber = bodyRowIndex + 2; // 1-indexed, +1 for header
 
-        // We can't actually 'delete' a row easily without the sheets.spreadsheets.batchUpdate 
+        // We can't actually 'delete' a row easily without the sheets.spreadsheets.batchUpdate
         // with DeleteDimensionRequest. But we can just clear the row content as a simple deletion.
         // The findAll logic already filters out empty rows:
         // .filter((row) => row.some((value) => value.trim().length > 0))

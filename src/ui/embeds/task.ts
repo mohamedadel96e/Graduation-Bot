@@ -31,7 +31,7 @@ export function taskEmbed(task: Task): EmbedBuilder {
 
 export function taskListEmbed(tasks: Task[], statusFilter?: string): EmbedBuilder {
     const title = statusFilter ? `Tasks (${statusFilter})` : 'All Tasks';
-    
+
     if (tasks.length === 0) {
         return new EmbedBuilder()
             .setColor(PALETTE.forest)
@@ -39,12 +39,11 @@ export function taskListEmbed(tasks: Task[], statusFilter?: string): EmbedBuilde
             .setDescription('No tasks found.');
     }
 
-    const embed = new EmbedBuilder()
-        .setColor(PALETTE.sage)
-        .setTitle(title);
+    const embed = new EmbedBuilder().setColor(PALETTE.sage).setTitle(title);
 
     const descriptionLines = tasks.map(
-        (t) => `**[${t.status}]** ${t.title} (\`${t.id}\`) - ${t.assignee} - Priority: ${t.priority}`
+        (t) =>
+            `**[${t.status}]** ${t.title} (\`${t.id}\`) - ${t.assignee} - Priority: ${t.priority}`,
     );
 
     embed.setDescription(descriptionLines.join('\n'));

@@ -1,9 +1,7 @@
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 export function taskAddModal(): ModalBuilder {
-    const modal = new ModalBuilder()
-        .setCustomId('modal-task-add')
-        .setTitle('Create New Task');
+    const modal = new ModalBuilder().setCustomId('modal-task-add').setTitle('Create New Task');
 
     const titleInput = new TextInputBuilder()
         .setCustomId('task-title')

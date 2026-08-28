@@ -13,9 +13,7 @@ export function ideaCommentModal(ideaId: string): ModalBuilder {
         .setRequired(true)
         .setMaxLength(1000);
 
-    modal.addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(commentInput),
-    );
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(commentInput));
 
     return modal;
 }

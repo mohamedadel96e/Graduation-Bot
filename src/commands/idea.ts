@@ -1,11 +1,7 @@
 import { SlashCommandBuilder, TextChannel } from 'discord.js';
 import { canManageProject } from '../permissions';
 import { UserFacingError } from '../services/idea-service';
-import {
-    IDEA_STATUSES,
-    type Actor,
-    type IdeaStatus,
-} from '../types';
+import { IDEA_STATUSES, type Actor, type IdeaStatus } from '../types';
 import { ideaEmbed, ideaListEmbed } from '../ui/embeds/idea';
 import { ideaActionButtons } from '../ui/components/idea-buttons';
 import { ideaAddModal } from '../ui/modals/idea-add';
@@ -16,43 +12,53 @@ export const ideaCommand: BotCommand = {
         .setName('idea')
         .setDescription('Manage graduation project ideas.')
         .addSubcommand((subcommand) =>
-            subcommand
-                .setName('add')
-                .setDescription('Submit a new project idea (opens a form).')
+            subcommand.setName('add').setDescription('Submit a new project idea (opens a form).'),
         )
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('list')
                 .setDescription('List project ideas.')
                 .addStringOption((option) =>
-                    option.setName('status').setDescription('Filter by status.').setRequired(false).addChoices(
-                        ...IDEA_STATUSES.map((status) => ({ name: status, value: status })),
-                    ),
+                    option
+                        .setName('status')
+                        .setDescription('Filter by status.')
+                        .setRequired(false)
+                        .addChoices(
+                            ...IDEA_STATUSES.map((status) => ({ name: status, value: status })),
+                        ),
                 ),
         )
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('view')
                 .setDescription('View a project idea with grades and comments.')
-                .addStringOption((option) => option.setName('id').setDescription('Idea ID.').setRequired(true)),
+                .addStringOption((option) =>
+                    option.setName('id').setDescription('Idea ID.').setRequired(true),
+                ),
         )
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('archive')
                 .setDescription('Archive an idea. Team Lead or Bot Admin only.')
-                .addStringOption((option) => option.setName('id').setDescription('Idea ID.').setRequired(true)),
+                .addStringOption((option) =>
+                    option.setName('id').setDescription('Idea ID.').setRequired(true),
+                ),
         )
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('comment')
                 .setDescription('Comment on a project idea.')
-                .addStringOption((option) => option.setName('id').setDescription('Idea ID.').setRequired(true))
-                .addStringOption((option) => option.setName('text').setDescription('Your comment.').setRequired(true)),
+                .addStringOption((option) =>
+                    option.setName('id').setDescription('Idea ID.').setRequired(true),
+                )
+                .addStringOption((option) =>
+                    option.setName('text').setDescription('Your comment.').setRequired(true),
+                ),
         )
         .addSubcommand((subcommand) =>
             subcommand
                 .setName('leaderboard')
-                .setDescription('Show all active ideas sorted by overall rating.')
+                .setDescription('Show all active ideas sorted by overall rating.'),
         ),
 
     async execute(interaction, context) {
@@ -70,14 +76,18 @@ export const ideaCommand: BotCommand = {
             if (subcommand === 'list') {
                 const status = (interaction.options.getString('status') ?? 'Active') as IdeaStatus;
                 const rows = await context.ideas.listIdeas(status);
-                await interaction.editReply({ embeds: [ideaListEmbed(rows, status, interaction.guildId)] });
+                await interaction.editReply({
+                    embeds: [ideaListEmbed(rows, status, interaction.guildId)],
+                });
                 return;
             }
 
             if (subcommand === 'leaderboard') {
                 const rows = await context.ideas.listIdeas('Active');
                 const sorted = rows.sort((a, b) => b.grades.overall - a.grades.overall);
-                const embed = ideaListEmbed(sorted, 'Active', interaction.guildId).setTitle('🏆 Idea Leaderboard');
+                const embed = ideaListEmbed(sorted, 'Active', interaction.guildId).setTitle(
+                    '🏆 Idea Leaderboard',
+                );
                 await interaction.editReply({ embeds: [embed] });
                 return;
             }
@@ -93,7 +103,9 @@ export const ideaCommand: BotCommand = {
 
             if (subcommand === 'archive') {
                 if (!canManageProject(interaction, context.env)) {
-                    await interaction.editReply({ content: 'Only a Team Lead or Bot Admin can archive ideas.' });
+                    await interaction.editReply({
+                        content: 'Only a Team Lead or Bot Admin can archive ideas.',
+                    });
                     return;
                 }
 
@@ -101,7 +113,9 @@ export const ideaCommand: BotCommand = {
                     interaction.options.getString('id', true),
                     actorFromInteraction(interaction),
                 );
-                await interaction.editReply({ content: `Archived idea \`${idea.id}\`: **${idea.title}**` });
+                await interaction.editReply({
+                    content: `Archived idea \`${idea.id}\`: **${idea.title}**`,
+                });
                 return;
             }
 
@@ -141,7 +155,9 @@ export const ideaCommand: BotCommand = {
     },
 };
 
-function actorFromInteraction(interaction: { user: { id: string; username: string; globalName: string | null } }): Actor {
+function actorFromInteraction(interaction: {
+    user: { id: string; username: string; globalName: string | null };
+}): Actor {
     return {
         id: interaction.user.id,
         name: interaction.user.globalName ?? interaction.user.username,

@@ -14,5 +14,9 @@ export function ideaActionButtons(ideaId: string): ActionRowBuilder<ButtonBuilde
         .setLabel('Add Comment')
         .setStyle(ButtonStyle.Secondary);
 
-    return new ActionRowBuilder<ButtonBuilder>().addComponents(gradeButton, addCommentButton, commentsButton);
+    return new ActionRowBuilder<ButtonBuilder>().addComponents(
+        gradeButton,
+        addCommentButton,
+        commentsButton,
+    );
 }

@@ -36,8 +36,14 @@ describe('MilestoneService', () => {
         const { service } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
 
-        const m1 = await service.createMilestone({ name: 'M1', description: 'Desc 1', target_date: '01/01/2026' }, actor);
-        const m2 = await service.createMilestone({ name: 'M2', description: 'Desc 2', target_date: '02/01/2026' }, actor);
+        await service.createMilestone(
+            { name: 'M1', description: 'Desc 1', target_date: '01/01/2026' },
+            actor,
+        );
+        const m2 = await service.createMilestone(
+            { name: 'M2', description: 'Desc 2', target_date: '02/01/2026' },
+            actor,
+        );
 
         await service.updateStatus(m2.id, 'completed', actor);
 
@@ -53,8 +59,11 @@ describe('MilestoneService', () => {
         const { service, logs } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
 
-        const m = await service.createMilestone({ name: 'M1', description: 'D1', target_date: '01/01/2026' }, actor);
-        
+        const m = await service.createMilestone(
+            { name: 'M1', description: 'D1', target_date: '01/01/2026' },
+            actor,
+        );
+
         // Progress > 0 && < 100 sets status to 'active'
         await service.updateProgress(m.id, 50, actor);
         let updated = await service.getMilestone(m.id);
@@ -79,7 +88,10 @@ describe('MilestoneService', () => {
         const { service, logs } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
 
-        const m = await service.createMilestone({ name: 'M1', description: 'D1', target_date: '01/01/2026' }, actor);
+        const m = await service.createMilestone(
+            { name: 'M1', description: 'D1', target_date: '01/01/2026' },
+            actor,
+        );
         await service.updateStatus(m.id, 'archived', actor);
 
         const updated = await service.getMilestone(m.id);

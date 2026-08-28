@@ -2,7 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import type { BotCommand } from './types';
 import { milestoneAddModal } from '../ui/modals/milestone-add';
 import { milestoneEmbed, milestoneListEmbed } from '../ui/embeds/milestone';
-import { MILESTONE_STATUSES, type MilestoneStatus } from '../types';
+import { type MilestoneStatus } from '../types';
 
 export const milestoneCommand: BotCommand = {
     data: new SlashCommandBuilder()
@@ -32,7 +32,9 @@ export const milestoneCommand: BotCommand = {
             sub
                 .setName('progress')
                 .setDescription('Update milestone progress')
-                .addStringOption((opt) => opt.setName('id').setDescription('Milestone ID').setRequired(true))
+                .addStringOption((opt) =>
+                    opt.setName('id').setDescription('Milestone ID').setRequired(true),
+                )
                 .addIntegerOption((opt) =>
                     opt
                         .setName('percentage')
@@ -54,10 +56,12 @@ export const milestoneCommand: BotCommand = {
         if (subcommand === 'list') {
             await interaction.deferReply();
             const status = interaction.options.getString('status') as MilestoneStatus | null;
-            
+
             const milestones = await context.milestones.listMilestones(status ?? undefined);
-            
-            await interaction.editReply({ embeds: [milestoneListEmbed(milestones, status ?? undefined)] });
+
+            await interaction.editReply({
+                embeds: [milestoneListEmbed(milestones, status ?? undefined)],
+            });
             return;
         }
 
@@ -77,8 +81,10 @@ export const milestoneCommand: BotCommand = {
                     content: `Milestone **${updated.name}** progress updated.`,
                     embeds: [milestoneEmbed(updated)],
                 });
-            } catch (err: any) {
-                await interaction.editReply({ content: err.message || 'Failed to update milestone progress.' });
+            } catch (err: unknown) {
+                const message =
+                    err instanceof Error ? err.message : 'Failed to update milestone progress.';
+                await interaction.editReply({ content: message });
             }
             return;
         }

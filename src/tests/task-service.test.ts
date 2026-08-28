@@ -36,8 +36,14 @@ describe('TaskService', () => {
         const { service } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
 
-        const task1 = await service.createTask({ title: 'Task 1', description: 'Desc 1', priority: 'Medium' }, actor);
-        const task2 = await service.createTask({ title: 'Task 2', description: 'Desc 2', priority: 'Low' }, actor);
+        await service.createTask(
+            { title: 'Task 1', description: 'Desc 1', priority: 'Medium' },
+            actor,
+        );
+        const task2 = await service.createTask(
+            { title: 'Task 2', description: 'Desc 2', priority: 'Low' },
+            actor,
+        );
 
         await service.updateTaskStatus(task2.id, 'done', actor);
 
@@ -53,7 +59,10 @@ describe('TaskService', () => {
         const { service, logs } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
 
-        const task = await service.createTask({ title: 'T1', description: 'D1', priority: 'High' }, actor);
+        const task = await service.createTask(
+            { title: 'T1', description: 'D1', priority: 'High' },
+            actor,
+        );
         await service.updateTaskStatus(task.id, 'in-progress', actor);
 
         const updated = await service.getTask(task.id);
@@ -70,7 +79,10 @@ describe('TaskService', () => {
         const { service, logs } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
 
-        const task = await service.createTask({ title: 'T1', description: 'D1', priority: 'High' }, actor);
+        const task = await service.createTask(
+            { title: 'T1', description: 'D1', priority: 'High' },
+            actor,
+        );
         await service.assignTask(task.id, '<@123> (Ahmed)', actor);
 
         const updated = await service.getTask(task.id);
@@ -86,7 +98,10 @@ describe('TaskService', () => {
         const { service, tasks, logs } = createTestService();
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
 
-        const task = await service.createTask({ title: 'T1', description: 'D1', priority: 'High' }, actor);
+        const task = await service.createTask(
+            { title: 'T1', description: 'D1', priority: 'High' },
+            actor,
+        );
         const deleted = await service.deleteTask(task.id, actor);
 
         assert.equal(deleted, true);

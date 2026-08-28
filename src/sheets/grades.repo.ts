@@ -16,7 +16,14 @@ export class GradesRepo {
 
     async summarizeForIdea(ideaId: string): Promise<GradeSummary> {
         const grades = await this.findByIdeaId(ideaId);
-        const empty: GradeSummary = { learning: 0, impact: 0, feasibility: 0, innovation: 0, overall: 0, count: 0 };
+        const empty: GradeSummary = {
+            learning: 0,
+            impact: 0,
+            feasibility: 0,
+            innovation: 0,
+            overall: 0,
+            count: 0,
+        };
 
         if (grades.length === 0) return empty;
 
@@ -26,10 +33,10 @@ export class GradesRepo {
         let innovation = 0;
 
         for (const g of grades) {
-            learning    += Number(g.learning)    || 0;
-            impact      += Number(g.impact)      || 0;
+            learning += Number(g.learning) || 0;
+            impact += Number(g.impact) || 0;
             feasibility += Number(g.feasibility) || 0;
-            innovation  += Number(g.innovation)  || 0;
+            innovation += Number(g.innovation) || 0;
         }
 
         const n = grades.length;

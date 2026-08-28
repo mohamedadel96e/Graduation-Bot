@@ -35,10 +35,7 @@ describe('StandupService', () => {
         const { service, logs } = createTestService('2026-08-01T12:00:00.000Z');
         const actor: Actor = { id: 'u1', name: 'Mohamed' };
 
-        await service.submitStandup(
-            { what_done: 'D1', what_next: 'N1', blockers: 'B1' },
-            actor,
-        );
+        await service.submitStandup({ what_done: 'D1', what_next: 'N1', blockers: 'B1' }, actor);
 
         const updated = await service.submitStandup(
             { what_done: 'D2', what_next: 'N2', blockers: 'B2' },
@@ -91,7 +88,7 @@ describe('StandupService', () => {
 
         const d1 = await service.getStandupsByDate('2026-08-01');
         assert.equal(d1.length, 1);
-        
+
         const d2 = await service.getStandupsByDate('2026-08-02');
         assert.equal(d2.length, 1);
     });

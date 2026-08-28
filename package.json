@@ -8,7 +8,11 @@
     "typecheck": "tsc --noEmit",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "test": "tsc -p tsconfig.test.json && node --test dist-tests/tests/idea-service.test.js dist-tests/tests/decision-service.test.js dist-tests/tests/task-service.test.js dist-tests/tests/milestone-service.test.js dist-tests/tests/standup-service.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test dist-tests/tests/idea-service.test.js dist-tests/tests/decision-service.test.js dist-tests/tests/task-service.test.js dist-tests/tests/milestone-service.test.js dist-tests/tests/standup-service.test.js",
+    "lint": "eslint src/ --ext .ts",
+    "lint:fix": "eslint src/ --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -31,6 +35,12 @@
   },
   "devDependencies": {
     "@types/node": "^26.0.1",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.4.1",
+    "prettier": "^3.9.6",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   }
