@@ -1,6 +1,7 @@
 import type { sheets_v4 } from 'googleapis';
 import { ENV } from '../config';
 import type { SheetRow } from '../types';
+import { withRetry } from './retry';
 
 export interface TableStore<T extends SheetRow> {
     findAll(): Promise<T[]>;
@@ -35,14 +36,14 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
     async append(row: T): Promise<T> {
         await this.ensureHeaders();
 
-        await this.sheets.spreadsheets.values.append({
+        await withRetry(() => this.sheets.spreadsheets.values.append({
             spreadsheetId: this.spreadsheetId,
             range: `${this.sheetName}!A:ZZ`,
             valueInputOption: 'RAW',
             requestBody: {
                 values: [this.columns.map((column) => row[column] ?? '')],
             },
-        });
+        }));
 
         return row;
     }
@@ -68,14 +69,14 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
         const existing = this.rowToObject(headers, values[sheetRowNumber - 1] ?? []);
         const next = { ...existing, ...patch } as T;
 
-        await this.sheets.spreadsheets.values.update({
+        await withRetry(() => this.sheets.spreadsheets.values.update({
             spreadsheetId: this.spreadsheetId,
             range: `${this.sheetName}!A${sheetRowNumber}:${toColumnName(headers.length)}${sheetRowNumber}`,
             valueInputOption: 'RAW',
             requestBody: {
                 values: [headers.map((header) => next[header] ?? '')],
             },
-        });
+        }));
 
         return next;
     }
@@ -103,10 +104,10 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
         // with DeleteDimensionRequest. But we can just clear the row content as a simple deletion.
         // The findAll logic already filters out empty rows:
         // .filter((row) => row.some((value) => value.trim().length > 0))
-        await this.sheets.spreadsheets.values.clear({
+        await withRetry(() => this.sheets.spreadsheets.values.clear({
             spreadsheetId: this.spreadsheetId,
             range: `${this.sheetName}!A${sheetRowNumber}:${toColumnName(headers.length)}${sheetRowNumber}`,
-        });
+        }));
 
         return true;
     }
@@ -124,35 +125,35 @@ export class GoogleSheetsTable<T extends SheetRow> implements TableStore<T> {
 
             const nextHeaders = [...headers, ...missingColumns];
 
-            await this.sheets.spreadsheets.values.update({
+            await withRetry(() => this.sheets.spreadsheets.values.update({
                 spreadsheetId: this.spreadsheetId,
                 range: `${this.sheetName}!A1:${toColumnName(nextHeaders.length)}1`,
                 valueInputOption: 'RAW',
                 requestBody: {
                     values: [nextHeaders],
                 },
-            });
+            }));
 
             return nextHeaders;
         }
 
-        await this.sheets.spreadsheets.values.update({
+        await withRetry(() => this.sheets.spreadsheets.values.update({
             spreadsheetId: this.spreadsheetId,
             range: `${this.sheetName}!A1:${toColumnName(this.columns.length)}1`,
             valueInputOption: 'RAW',
             requestBody: {
                 values: [[...this.columns]],
             },
-        });
+        }));
 
         return [...this.columns];
     }
 
     private async readValues(range = 'A:ZZ'): Promise<string[][]> {
-        const response = await this.sheets.spreadsheets.values.get({
+        const response = await withRetry(() => this.sheets.spreadsheets.values.get({
             spreadsheetId: this.spreadsheetId,
             range: `${this.sheetName}!${range}`,
-        });
+        }));
 
         return (response.data.values ?? []).map((row) => row.map((value) => String(value ?? '')));
     }
