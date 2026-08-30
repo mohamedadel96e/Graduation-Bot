@@ -32,8 +32,9 @@ export const decideCommand: BotCommand = {
             await interaction.deferReply();
 
             if (subcommand === 'finalize') {
-                if (!canManageProject(interaction, context.env)) {
-                    await interaction.editReply({ content: 'Only a Team Lead or Bot Admin can finalize ideas.' });
+                const perm = canManageProject(interaction, context.env);
+                if (!perm.allowed) {
+                    await interaction.editReply({ content: perm.message });
                     return;
                 }
 
@@ -46,8 +47,9 @@ export const decideCommand: BotCommand = {
             }
 
             if (subcommand === 'reasoning') {
-                if (!canManageProject(interaction, context.env)) {
-                    await interaction.editReply({ content: 'Only a Team Lead or Bot Admin can update decision reasoning.' });
+                const perm = canManageProject(interaction, context.env);
+                if (!perm.allowed) {
+                    await interaction.editReply({ content: perm.message });
                     return;
                 }
 

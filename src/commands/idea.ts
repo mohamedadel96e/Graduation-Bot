@@ -92,8 +92,9 @@ export const ideaCommand: BotCommand = {
             }
 
             if (subcommand === 'archive') {
-                if (!canManageProject(interaction, context.env)) {
-                    await interaction.editReply({ content: 'Only a Team Lead or Bot Admin can archive ideas.' });
+                const perm = canManageProject(interaction, context.env);
+                if (!perm.allowed) {
+                    await interaction.editReply({ content: perm.message });
                     return;
                 }
 

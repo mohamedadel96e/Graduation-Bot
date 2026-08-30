@@ -125,9 +125,10 @@ export const taskCommand: BotCommand = {
         }
 
         if (subcommand === 'delete') {
-            if (!canManageProject(interaction, context.env)) {
+            const perm = canManageProject(interaction, context.env);
+            if (!perm.allowed) {
                 await interaction.reply({
-                    content: 'You do not have permission to delete tasks. Only team leads and admins can do this.',
+                    content: perm.message,
                     flags: ['Ephemeral'],
                 });
                 return;

@@ -1,8 +1,10 @@
 import { createServer } from 'node:http';
 import { createGradBot } from './bot';
+import { setupGracefulShutdown } from './utils/graceful-shutdown';
 
 async function main() {
     const bot = createGradBot();
+    setupGracefulShutdown(bot, bot.crons);
     await bot.start();
 
     // Create a simple HTTP server to satisfy Render's port binding requirement

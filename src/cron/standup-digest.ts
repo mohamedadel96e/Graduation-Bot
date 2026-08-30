@@ -1,11 +1,11 @@
-import cron from 'node-cron';
+import cron, { ScheduledTask } from 'node-cron';
 import { Client, TextChannel } from 'discord.js';
 import type { CommandContext } from '../commands/types';
 import type { DiscordLogger } from '../services/logger';
 import { ENV } from '../config';
 
-export function scheduleStandupDigest(client: Client, context: CommandContext, discordLogger: DiscordLogger) {
-    cron.schedule('0 0 * * *', async () => {
+export function scheduleStandupDigest(client: Client, context: CommandContext, discordLogger: DiscordLogger): ScheduledTask {
+    return cron.schedule('0 0 * * *', async () => {
         try {
             console.log('Running daily standup digest cron job...');
             

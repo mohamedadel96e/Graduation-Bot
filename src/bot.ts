@@ -42,6 +42,7 @@ export interface GradBot {
     client: Client;
     commands: BotCommand[];
     context: CommandContext;
+    crons: any[]; // Changed to any[] to avoid importing node-cron here or use ScheduledTask
     start(): Promise<void>;
 }
 
@@ -75,7 +76,8 @@ export function createGradBot(env = ENV): GradBot {
     };
 
     // Schedule Daily Digest Cron Job
-    scheduleStandupDigest(client, context, discordLogger);
+    const standupCron = scheduleStandupDigest(client, context, discordLogger);
+    const crons = [standupCron];
 
     // Prevent unhandled errors from crashing the process
     client.on('error', (error) => {
@@ -90,6 +92,7 @@ export function createGradBot(env = ENV): GradBot {
         client,
         commands,
         context,
+        crons,
         async start() {
             if (!env.DISCORD_TOKEN) {
                 throw new Error('DISCORD_TOKEN is missing in the .env file.');

@@ -49,7 +49,7 @@ export function milestoneEmbed(milestone: Milestone): EmbedBuilder {
     
     let statusText = milestone.status;
     if (pastDue && milestone.status !== 'completed' && milestone.status !== 'archived') {
-        statusText += ' ⚠️ (Past Due)';
+        statusText += ' (Past Due)';
     }
 
     return new EmbedBuilder()
@@ -81,7 +81,7 @@ export function milestoneListEmbed(milestones: Milestone[], statusFilter?: strin
 
     const descriptionLines = milestones.map((m) => {
         const pastDue = isPastDue(m.target_date);
-        const pastDueMarker = (pastDue && m.status !== 'completed' && m.status !== 'archived') ? '⚠️' : '';
+        const pastDueMarker = (pastDue && m.status !== 'completed' && m.status !== 'archived') ? ' (Past Due)' : '';
         const numProgress = parseInt(m.progress, 10) || 0;
         
         return `**[${m.status}]** ${m.name} (\`${m.id}\`) ${pastDueMarker}\n` +
