@@ -8,6 +8,7 @@ import { IdeaService } from './services/idea-service';
 import { DiscordLogger } from './services/logger';
 import { getSheetsClient } from './sheets/client';
 import { GoogleSheetsTable } from './sheets/sheet-table';
+import { CachedTable } from './sheets/cached-table';
 import { DecisionRepo } from './sheets/decision.repo';
 import { GradesRepo } from './sheets/grades.repo';
 import { IdeasRepo } from './sheets/ideas.repo';
@@ -106,13 +107,13 @@ export function createGradBot(env = ENV): GradBot {
 function createCommandContext(env: typeof ENV, logger: DiscordLogger): CommandContext {
     const sheets = getSheetsClient(env);
 
-    const logsRepo = new LogsRepo(new GoogleSheetsTable<LogEntry>(sheets, 'Logs', LOG_COLUMNS, env.GOOGLE_SHEET_ID));
-    const ideasRepo = new IdeasRepo(new GoogleSheetsTable<Idea>(sheets, 'Ideas', IDEA_COLUMNS, env.GOOGLE_SHEET_ID));
-    const gradesRepo = new GradesRepo(new GoogleSheetsTable<Grade>(sheets, 'Grades', GRADE_COLUMNS, env.GOOGLE_SHEET_ID));
-    const decisionRepo = new DecisionRepo(new GoogleSheetsTable<Decision>(sheets, 'Decisions', DECISION_COLUMNS, env.GOOGLE_SHEET_ID));
-    const tasksRepo = new TasksRepo(new GoogleSheetsTable<Task>(sheets, 'Tasks', TASK_COLUMNS, env.GOOGLE_SHEET_ID));
-    const milestonesRepo = new MilestonesRepo(new GoogleSheetsTable<Milestone>(sheets, 'Milestones', MILESTONE_COLUMNS, env.GOOGLE_SHEET_ID));
-    const standupsRepo = new StandupsRepo(new GoogleSheetsTable<Standup>(sheets, 'Standups', STANDUP_COLUMNS, env.GOOGLE_SHEET_ID));
+    const logsRepo = new LogsRepo(new CachedTable(new GoogleSheetsTable<LogEntry>(sheets, 'Logs', LOG_COLUMNS, env.GOOGLE_SHEET_ID)));
+    const ideasRepo = new IdeasRepo(new CachedTable(new GoogleSheetsTable<Idea>(sheets, 'Ideas', IDEA_COLUMNS, env.GOOGLE_SHEET_ID)));
+    const gradesRepo = new GradesRepo(new CachedTable(new GoogleSheetsTable<Grade>(sheets, 'Grades', GRADE_COLUMNS, env.GOOGLE_SHEET_ID)));
+    const decisionRepo = new DecisionRepo(new CachedTable(new GoogleSheetsTable<Decision>(sheets, 'Decisions', DECISION_COLUMNS, env.GOOGLE_SHEET_ID)));
+    const tasksRepo = new TasksRepo(new CachedTable(new GoogleSheetsTable<Task>(sheets, 'Tasks', TASK_COLUMNS, env.GOOGLE_SHEET_ID)));
+    const milestonesRepo = new MilestonesRepo(new CachedTable(new GoogleSheetsTable<Milestone>(sheets, 'Milestones', MILESTONE_COLUMNS, env.GOOGLE_SHEET_ID)));
+    const standupsRepo = new StandupsRepo(new CachedTable(new GoogleSheetsTable<Standup>(sheets, 'Standups', STANDUP_COLUMNS, env.GOOGLE_SHEET_ID)));
 
     return {
         env,
